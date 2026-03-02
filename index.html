@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SCENERY</title>
+  <link rel="stylesheet" href="./site-cursor.css" />
+  <style>
+    :root {
+      --frame-width: 1280px;
+      --frame-height: 960px;
+      --scale: 4;
+      --sprite-width: calc(var(--frame-width) * var(--scale));
+      --sprite-height: calc(var(--frame-height) * var(--scale));
+      --sheet-width: 56320px;
+      --sheet-height: 38400px;
+      --ui-offset: 20px;
+      --btn-size: 50px;
+      --glow: #0f0;
+      --bg: #000;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--bg);
+      overflow: hidden;
+      cursor: var(--site-cursor);
+    }
+
+    #sprite {
+      width: var(--sprite-width);
+      height: var(--sprite-height);
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-image: url('https://files.catbox.moe/pc9rtq.png');
+      background-repeat: no-repeat;
+      background-size: var(--sheet-width) var(--sheet-height);
+      image-rendering: pixelated;
+      pointer-events: none;
+    }
+
+    #invisible-btn {
+      position: fixed;
+      bottom: var(--ui-offset);
+      right: var(--ui-offset);
+      width: var(--btn-size);
+      height: var(--btn-size);
+      background: transparent;
+      border: none;
+      cursor: var(--site-cursor);
+      z-index: 10000;
+    }
+
+    #secret-btn {
+      display: none;
+      position: fixed;
+      top: var(--ui-offset);
+      left: var(--ui-offset);
+      padding: 8px 12px;
+      background: var(--bg);
+      color: var(--glow);
+      font-weight: bold;
+      font-family: monospace, monospace;
+      border: none;
+      border-radius: 4px;
+      cursor: var(--site-cursor);
+      z-index: 10001;
+      user-select: none;
+      box-shadow: 0 0 10px var(--glow);
+      transition: background-color 0.3s ease;
+    }
+
+    #secret-btn:hover {
+      background: #050;
+      box-shadow: 0 0 20px var(--glow);
+    }
+  </style>
+</head>
+<body>
+  <div id="sprite"></div>
+  <button id="secret-btn" aria-label="Secret Button" title="Secret Button">741</button>
+
+  <script>
+    const baseTitle = "SCENERY";
+    const glitchChars = "!@#$%^&*<>/\\|[]{}=+-_~";
+    const vibeFrames = [
+      "S C E N E R Y",
+      "SC3N3RY",
+      "[SCENERY]",
+      "<<SCENERY>>",
+      "SCENERY.EXE",
+      "SCENERY // SIGNAL",
+      "SCENERY ///",
+      "S C E N E R Y //"
+    ];
+
+    function randomInt(max) {
+      return Math.floor(Math.random() * max);
+    }
+
+    function mutateTitle(source, intensity) {
+      const chars = source.split("");
+      const swaps = Math.max(1, Math.floor(source.length * intensity));
+      for (let i = 0; i < swaps; i += 1) {
+        const at = randomInt(chars.length);
+        chars[at] = glitchChars[randomInt(glitchChars.length)];
+      }
+      return chars.join("");
+    }
+
+    function nextTitleFrame() {
+      const roll = Math.random();
+      if (roll < 0.14) return baseTitle;
+      if (roll < 0.4) return vibeFrames[randomInt(vibeFrames.length)];
+      if (roll < 0.75) return mutateTitle(baseTitle, 0.35);
+      return mutateTitle(vibeFrames[randomInt(vibeFrames.length)], 0.55);
+    }
+
+    (function runTitleChaos() {
+      document.title = nextTitleFrame();
+      let delay = 32 + randomInt(95);
+      if (Math.random() < 0.2) delay = 14 + randomInt(24);
+      if (Math.random() < 0.08) {
+        let burst = 3 + randomInt(5);
+        const burstTick = () => {
+          document.title = nextTitleFrame();
+          burst -= 1;
+          if (burst > 0) {
+            setTimeout(burstTick, 8 + randomInt(14));
+          } else {
+            setTimeout(runTitleChaos, 45 + randomInt(90));
+          }
+        };
+        setTimeout(burstTick, 4);
+        return;
+      }
+      setTimeout(runTitleChaos, delay);
+    }());
+
+    const config = {
+      frameWidth: 1280,
+      frameHeight: 960,
+      scale: 4,
+      cols: 11,
+      rows: 10,
+      bottomRowMaxCol: 9,
+      colRange: 4,
+      topLeftThreshold: 0.1,
+      zoomThreshold: 0.8,
+      middleCols: [5, 4, 3, 2, 1, 0, 9, 8, 7, 6]
+    };
+
+    const sprite = document.getElementById("sprite");
+    const secretBtn = document.getElementById("secret-btn");
+    const invisibleBtn = document.createElement("button");
+
+    let mouseInTopLeft = false;
+    let zoomOk = false;
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    function updateSpriteFromMouse(event) {
+      const relX = event.clientX / window.innerWidth;
+      const relY = 1 - event.clientY / window.innerHeight;
+
+      const row = clamp(Math.floor(relY * config.rows), 0, config.rows - 1);
+      const middle = config.middleCols[row];
+
+      let col = middle - Math.round((relX - 0.5) * config.colRange * 2);
+      const maxCol = row === config.rows - 1 ? config.bottomRowMaxCol : config.cols - 1;
+      col = clamp(col, 0, maxCol);
+
+      const bgX = -col * config.frameWidth * config.scale;
+      const bgY = -row * config.frameHeight * config.scale;
+      sprite.style.backgroundPosition = `${bgX}px ${bgY}px`;
+    }
+
+    function updateSecretBtnVisibility() {
+      secretBtn.style.display = zoomOk && mouseInTopLeft ? "block" : "none";
+    }
+
+    function updateZoomState() {
+      const zoomLevel = window.outerWidth / window.innerWidth;
+      zoomOk = zoomLevel < config.zoomThreshold;
+      updateSecretBtnVisibility();
+    }
+
+    function handleMouseMove(event) {
+      updateSpriteFromMouse(event);
+
+      const xRatio = event.clientX / window.innerWidth;
+      const yRatio = event.clientY / window.innerHeight;
+      mouseInTopLeft = xRatio < config.topLeftThreshold && yRatio < config.topLeftThreshold;
+      updateSecretBtnVisibility();
+    }
+
+    invisibleBtn.id = "invisible-btn";
+    invisibleBtn.setAttribute("aria-label", "Go to Matrix");
+    invisibleBtn.setAttribute("title", "Go to Matrix");
+    invisibleBtn.addEventListener("click", () => {
+      window.location.href = "matrix.html";
+    });
+    document.body.appendChild(invisibleBtn);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("resize", updateZoomState);
+    window.addEventListener("load", updateZoomState);
+
+    secretBtn.addEventListener("click", () => {
+      alert("H87572MRA");
+    });
+  </script>
+</body>
+</html>

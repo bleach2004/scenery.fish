@@ -1,0 +1,32 @@
+:root {
+  --site-cursor: url("./assets/cursors/cursor.png") 8 8, auto;
+  --site-cursor-hover: url("./assets/cursors/cursorhover.png") 8 8, pointer;
+}
+
+*,
+*::before,
+*::after {
+  cursor: var(--site-cursor) !important;
+}
+
+a,
+a *,
+button,
+button *,
+[role="button"],
+[role="button"] *,
+ .cursor-link,
+ .cursor-link *,
+summary,
+summary *,
+label[for],
+label[for] *,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+input[type="checkbox"],
+input[type="radio"],
+select,
+option {
+  cursor: var(--site-cursor-hover) !important;
+}
