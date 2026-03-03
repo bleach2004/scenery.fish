@@ -59,7 +59,7 @@
   head.style.backgroundSize = "contain";
   head.style.backgroundRepeat = "no-repeat";
   head.style.backgroundPosition = "center";
-  head.style.filter = "drop-shadow(0 0 8px rgba(255,255,255,0.95)) drop-shadow(0 0 14px rgba(255,255,255,0.45)) brightness(1.1)";
+  head.style.filter = "none";
   head.style.opacity = "0";
   head.style.willChange = "transform, opacity";
   layer.appendChild(head);
