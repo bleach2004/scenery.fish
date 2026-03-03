@@ -10,14 +10,8 @@
   const body = document.body;
   if (!body) return;
 
-  function readCursorUrl() {
-    const raw = getComputedStyle(root).getPropertyValue("--site-cursor").trim();
-    const match = raw.match(/url\((['\"]?)(.*?)\1\)/i);
-    if (match && match[2]) return match[2];
-    return "/assets/cursors/cursor.png";
-  }
-
-  const cursorUrl = readCursorUrl();
+  // Always use the exact sprite file requested by user.
+  const cursorUrl = "/assets/cursors/cursor.png";
   const HOTSPOT_X = 8;
   const HOTSPOT_Y = 8;
   const CURSOR_SIZE = 28;
