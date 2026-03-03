@@ -2053,7 +2053,6 @@
       portfolio.removeAttribute("aria-hidden");
       toolbar.style.display = "flex";
       sidePanel.style.display = "none";
-      sessionStorage.setItem("vaultUnlocked", "true");
       loadCanvasIntoState(workspace.activeCanvasId, true);
       resetHistoryState();
       setSaveStatus("Saved");
@@ -2068,14 +2067,10 @@
         currentCanvasId = workspace.activeCanvasId;
       }
       refreshCanvasSelectors();
-      if (sessionStorage.getItem("vaultUnlocked") === "true") {
-        unlock();
-      } else {
-        portfolio.classList.add("locked");
-        portfolio.setAttribute("aria-hidden", "true");
-        loadCanvasIntoState(workspace.publicCanvasId, false);
-        passwordInput.focus();
-      }
+      portfolio.classList.add("locked");
+      portfolio.setAttribute("aria-hidden", "true");
+      loadCanvasIntoState(workspace.publicCanvasId, false);
+      passwordInput.focus();
     }
 
     initializeGateState();
