@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="../styles.css" />
 </head>
 <body>
-  <div id="toolbar" class="toolbar" aria-label="Canvas editor">
+  <div id="toolbar" class="toolbar" aria-label="Canvas editor" hidden>
     <button id="toggleEdit">Scenery Only</button>
     <button id="addTextBtn" class="alt" hidden>Add Text</button>
     <button id="addImageBtn" class="alt" hidden>Add Media</button>
@@ -26,7 +26,7 @@
     <input id="cursorInput" type="file" accept="image/*" hidden />
   </div>
 
-  <aside id="sidePanel" class="side-panel" aria-label="Editor panel">
+  <aside id="sidePanel" class="side-panel" aria-label="Editor panel" hidden>
     <p class="panel-dock-title">Editor Dock</p>
     <div class="panel-scroll">
       <section class="panel-group" data-panel-id="text">
@@ -216,7 +216,7 @@
     </div>
   </aside>
 
-  <main id="portfolio" class="shell locked" aria-hidden="true">
+  <main id="portfolio" class="shell locked" aria-hidden="true" hidden>
     <section class="hero">
       <h1>Your Name</h1>
       <p class="subtitle">Creative Developer | World Builder | Portfolio Vault</p>

@@ -2049,6 +2049,9 @@
     function unlock() {
       isUnlocked = true;
       gate.style.display = "none";
+      toolbar.removeAttribute("hidden");
+      sidePanel.removeAttribute("hidden");
+      portfolio.removeAttribute("hidden");
       portfolio.classList.remove("locked");
       portfolio.removeAttribute("aria-hidden");
       toolbar.style.display = "flex";
@@ -2069,7 +2072,6 @@
       refreshCanvasSelectors();
       portfolio.classList.add("locked");
       portfolio.setAttribute("aria-hidden", "true");
-      loadCanvasIntoState(workspace.publicCanvasId, false);
       passwordInput.focus();
     }
 

@@ -1,4 +1,7 @@
 const WORKSPACE_URL = "./workspace.json";
+const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
+const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
+const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
 
 function asNumber(value, fallback) {
   const next = Number(value);
@@ -95,4 +98,42 @@ async function loadAndRender() {
   }
 }
 
+async function postJson(url, payload) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+async function verifyAnyVaultPassword(password) {
+  try {
+    const loginResp = await postJson(AUTH_ENDPOINT_LOGIN, { password });
+    if (loginResp.ok) return true;
+    const editResp = await postJson(AUTH_ENDPOINT_EDIT, { password });
+    return editResp.ok;
+  } catch (error) {
+    console.error("Vault auth request failed.", error);
+    return false;
+  }
+}
+
+function setupEditorEntry() {
+  const button = document.getElementById("enterEditorBtn");
+  if (!button) return;
+  button.addEventListener("click", async () => {
+    const input = prompt("SCENERY ONLY");
+    if (input === null) return;
+    button.disabled = true;
+    const ok = await verifyAnyVaultPassword(input);
+    button.disabled = false;
+    if (!ok) {
+      alert("XD");
+      return;
+    }
+    window.location.href = "./sceneryonly/";
+  });
+}
+
 loadAndRender();
+setupEditorEntry();
