@@ -102,7 +102,11 @@
       user-select: none;
     }
 
-    .canvas-item.image,
+    .canvas-item.image {
+      overflow: hidden;
+      background: transparent;
+    }
+
     .canvas-item.video {
       overflow: hidden;
       background: #000;

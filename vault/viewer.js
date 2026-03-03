@@ -2,6 +2,7 @@ const WORKSPACE_URL = "./workspace.json";
 const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
 const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
 const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
+let currentItems = [];
 
 function asNumber(value, fallback) {
   const next = Number(value);
@@ -75,6 +76,40 @@ function pickCanvas(payload) {
   return workspace.canvases.find((canvas) => canvas.id === id) || workspace.canvases[0] || null;
 }
 
+function applyResponsiveLayout() {
+  const canvas = document.getElementById("canvas");
+  const wrap = document.querySelector(".canvas-wrap");
+  const topbar = document.querySelector(".topbar");
+  if (!canvas || !wrap) return;
+
+  let maxRight = 0;
+  let maxBottom = 0;
+  for (const item of currentItems) {
+    if (item && item.hidden) continue;
+    const x = asNumber(item && item.x, 0);
+    const y = asNumber(item && item.y, 0);
+    const w = Math.max(1, asNumber(item && item.w, 240));
+    const h = Math.max(1, asNumber(item && item.h, 120));
+    maxRight = Math.max(maxRight, x + w + 40);
+    maxBottom = Math.max(maxBottom, y + h + 40);
+  }
+
+  const designWidth = Math.max(640, Math.round(maxRight || 640));
+  const designHeight = Math.max(420, Math.round(maxBottom || 420));
+  const topbarHeight = topbar ? topbar.offsetHeight : 0;
+  const viewportWidth = Math.max(320, window.innerWidth);
+  const viewportHeight = Math.max(240, window.innerHeight - topbarHeight - 12);
+  let fitScale = Math.min(viewportWidth / designWidth, viewportHeight / designHeight);
+  fitScale = Math.max(0.25, Math.min(1.35, fitScale));
+  const offsetX = Math.max(0, Math.round((viewportWidth - (designWidth * fitScale)) / 2));
+
+  canvas.style.width = `${designWidth}px`;
+  canvas.style.height = `${designHeight}px`;
+  canvas.style.transformOrigin = "top left";
+  canvas.style.transform = `translate(${offsetX}px, 0px) scale(${fitScale})`;
+  wrap.style.minHeight = `${Math.ceil((designHeight * fitScale) + topbarHeight)}px`;
+}
+
 async function loadAndRender() {
   const canvas = document.getElementById("canvas");
   canvas.innerHTML = "";
@@ -92,7 +127,9 @@ async function loadAndRender() {
     }
 
     const items = Array.isArray(selected.items) ? selected.items : [];
+    currentItems = items;
     for (const item of items) renderItem(item, canvas);
+    applyResponsiveLayout();
   } catch (error) {
     console.error("Vault viewer failed to load workspace.json", error);
   }
@@ -137,3 +174,4 @@ function setupEditorEntry() {
 
 loadAndRender();
 setupEditorEntry();
+window.addEventListener("resize", applyResponsiveLayout);

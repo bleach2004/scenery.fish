@@ -476,14 +476,14 @@
       const siteCursor = getComputedStyle(document.documentElement).getPropertyValue("--site-cursor").trim() || "auto";
       document.documentElement.style.setProperty("--canvas-bg", settings.canvasBg);
       bgColorInput.value = settings.canvasBg;
-      canvasWrap.style.zoom = String(settings.zoom);
+      canvasWrap.style.zoom = isEditMode ? String(settings.zoom) : "1";
       zoomInput.value = String(Math.round(settings.zoom * 100));
       zoomValue.textContent = `${Math.round(settings.zoom * 100)}%`;
       snapToggle.checked = settings.snapEnabled;
       gridSizeInput.value = String(settings.gridSize);
       guideToggle.checked = settings.showGuides;
       stretchDragToggle.checked = settings.textStretchDrag;
-      if (settings.snapEnabled) {
+      if (settings.snapEnabled && isEditMode) {
         const g = settings.gridSize;
         canvasWrap.style.backgroundImage =
           `linear-gradient(transparent ${g - 1}px, rgba(255,255,255,0.08) ${g}px),` +
@@ -622,13 +622,41 @@
     }
 
     function ensureCanvasHeight() {
-      let maxBottom = window.innerHeight * 1.8;
+      let maxBottom = 0;
+      let maxRight = 0;
       for (const item of items) {
         if (item.hidden) continue;
+        const widthGuess = item.w || (item.type === "image" ? 320 : 260);
         const heightGuess = item.h || (item.type === "image" ? 240 : 160);
+        maxRight = Math.max(maxRight, item.x + widthGuess + 40);
         maxBottom = Math.max(maxBottom, item.y + heightGuess + 40);
       }
-      canvas.style.height = `${Math.max(maxBottom, 1600)}px`;
+
+      const boundsWidth = Math.max(640, Math.round(maxRight || 640));
+      const boundsHeight = Math.max(420, Math.round(maxBottom || 420));
+
+      if (isEditMode) {
+        let editMinHeight = window.innerHeight * 1.8;
+        editMinHeight = Math.max(editMinHeight, 1600);
+        canvas.style.transform = "none";
+        canvas.style.width = `${Math.max(boundsWidth, window.innerWidth)}px`;
+        canvas.style.height = `${Math.max(boundsHeight, editMinHeight)}px`;
+        canvasWrap.style.minHeight = "100vh";
+        return;
+      }
+
+      const viewportWidth = Math.max(320, window.innerWidth);
+      const viewportHeight = Math.max(260, window.innerHeight - 16);
+      let fitScale = Math.min(viewportWidth / boundsWidth, viewportHeight / boundsHeight);
+      fitScale = clamp(fitScale, 0.25, 1.35);
+
+      const offsetX = Math.max(0, Math.round((viewportWidth - (boundsWidth * fitScale)) / 2));
+
+      canvas.style.width = `${boundsWidth}px`;
+      canvas.style.height = `${boundsHeight}px`;
+      canvas.style.transformOrigin = "top left";
+      canvas.style.transform = `translate(${offsetX}px, 0px) scale(${fitScale})`;
+      canvasWrap.style.minHeight = `${Math.ceil(boundsHeight * fitScale)}px`;
     }
 
     function syncSelectionClasses() {
@@ -1912,6 +1940,7 @@
         clearSelection();
         hideGuides();
       }
+      applySettings();
       renderCanvas();
     }
 
