@@ -27,7 +27,6 @@
   for (let i = 0; i < ECHO_COUNT; i += 1) {
     const el = document.createElement("div");
     const alpha = 0.38 - (i * 0.023);
-    const scale = 1 - (i * 0.02);
 
     el.style.position = "absolute";
     el.style.width = `${CURSOR_SIZE}px`;
@@ -46,8 +45,7 @@
       el,
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
-      baseAlpha: Math.max(0.03, alpha),
-      scale: Math.max(0.64, scale)
+      baseAlpha: Math.max(0.03, alpha)
     });
   }
 
@@ -59,7 +57,7 @@
   head.style.backgroundSize = "contain";
   head.style.backgroundRepeat = "no-repeat";
   head.style.backgroundPosition = "center";
-  head.style.filter = "drop-shadow(0 0 8px rgba(255,255,255,0.95)) drop-shadow(0 0 14px rgba(255,255,255,0.45)) brightness(1.1)";
+  head.style.filter = "drop-shadow(0 0 10px rgba(255,255,255,1)) drop-shadow(0 0 18px rgba(255,255,255,0.72)) brightness(1.18)";
   head.style.opacity = "0";
   head.style.willChange = "transform, opacity";
   layer.appendChild(head);
@@ -102,7 +100,7 @@
       e.x += (leaderX - e.x) * Math.max(0.07, drag);
       e.y += (leaderY - e.y) * Math.max(0.07, drag);
 
-      e.el.style.transform = `translate(${e.x - HOTSPOT_X}px, ${e.y - HOTSPOT_Y}px) scale(${e.scale})`;
+      e.el.style.transform = `translate(${e.x - HOTSPOT_X}px, ${e.y - HOTSPOT_Y}px)`;
       e.el.style.opacity = visible ? String(e.baseAlpha) : "0";
 
       leaderX = e.x;
