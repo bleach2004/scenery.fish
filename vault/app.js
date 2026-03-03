@@ -2,6 +2,7 @@
     const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
     const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
     const AUTH_ENDPOINT_PUBLISH = `${AUTH_API_BASE}/api/publish/github`;
+    const PUBLISHED_WORKSPACE_URL = "./workspace.json";
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -285,6 +286,25 @@
           }
         ]
       });
+    }
+
+    async function loadPublishedWorkspace() {
+      try {
+        const response = await fetch(PUBLISHED_WORKSPACE_URL, { cache: "no-store" });
+        if (!response.ok) return null;
+        const payload = await response.json();
+        if (!payload || typeof payload !== "object") return null;
+        if (payload.workspace && typeof payload.workspace === "object") {
+          return normalizeWorkspace(payload.workspace);
+        }
+        if (Array.isArray(payload.canvases)) {
+          return normalizeWorkspace(payload);
+        }
+        return null;
+      } catch (error) {
+        console.error("Failed to load published workspace.json.", error);
+        return null;
+      }
     }
 
     function findCanvasById(canvasId) {
@@ -2042,6 +2062,11 @@
     }
 
     async function initializeGateState() {
+      const publishedWorkspace = await loadPublishedWorkspace();
+      if (publishedWorkspace) {
+        workspace = publishedWorkspace;
+        currentCanvasId = workspace.activeCanvasId;
+      }
       refreshCanvasSelectors();
       if (sessionStorage.getItem("vaultUnlocked") === "true") {
         unlock();
