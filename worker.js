@@ -60,6 +60,7 @@ async function getExistingGithubFileSha(owner, repo, path, branch, token) {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
+      "User-Agent": "scenery-fish-worker",
       "X-GitHub-Api-Version": "2022-11-28"
     }
   });
@@ -102,6 +103,7 @@ async function publishWorkspaceToGithub(env, message, workspace) {
     headers: {
       Accept: "application/vnd.github+json",
       Authorization: `Bearer ${token}`,
+      "User-Agent": "scenery-fish-worker",
       "Content-Type": "application/json",
       "X-GitHub-Api-Version": "2022-11-28"
     },
