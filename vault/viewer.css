@@ -1,0 +1,101 @@
+@import url("../site-cursor.css");
+
+:root {
+  --bg: #000;
+  --text: #f3f3f3;
+  --muted: #9a9a9a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+}
+
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.editor-link {
+  color: #8ab4ff;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.editor-link:hover,
+.editor-link:focus-visible {
+  text-decoration: underline;
+}
+
+.canvas-wrap {
+  position: relative;
+  min-height: 100vh;
+  padding-top: 3.25rem;
+  background: #000;
+}
+
+.canvas {
+  position: relative;
+  min-height: calc(100vh - 3.25rem);
+}
+
+.canvas-item {
+  position: absolute;
+  overflow: hidden;
+  background: transparent;
+}
+
+.canvas-item img,
+.canvas-item video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.canvas-item img {
+  object-fit: contain;
+}
+
+.canvas-item.video video {
+  object-fit: contain;
+}
+
+.canvas-item.text {
+  color: #f3f3f3;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.canvas-item.text a {
+  color: #8ab4ff;
+}
+
+.canvas-item.hidden {
+  display: none;
+}
