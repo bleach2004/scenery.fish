@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "publishedAt": "2026-03-03T21:06:32.894Z",
+  "publishedAt": "2026-03-03T21:08:29.246Z",
   "workspace": {
     "canvases": [
       {
@@ -42,7 +42,7 @@
         ],
         "settings": {
           "canvasBg": "#000000",
-          "snapEnabled": true,
+          "snapEnabled": false,
           "gridSize": 24,
           "showGuides": true,
           "zoom": 1,
