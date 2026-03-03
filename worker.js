@@ -38,6 +38,82 @@ async function readJson(request) {
   }
 }
 
+function base64EncodeUtf8(input) {
+  const bytes = new TextEncoder().encode(input);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function encodeRepoPath(path) {
+  return path.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment)).join("/");
+}
+
+async function getExistingGithubFileSha(owner, repo, path, branch, token) {
+  const encodedPath = encodeRepoPath(path);
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`;
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "X-GitHub-Api-Version": "2022-11-28"
+    }
+  });
+  if (response.status === 404) return "";
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Failed to check existing file (${response.status}): ${body}`);
+  }
+  const data = await response.json();
+  return typeof data.sha === "string" ? data.sha : "";
+}
+
+async function publishWorkspaceToGithub(env, message, workspace) {
+  const owner = env.GITHUB_OWNER || "bleach2004";
+  const repo = env.GITHUB_REPO || "scenery.fish";
+  const branch = env.GITHUB_BRANCH || "main";
+  const path = env.GITHUB_PATH || "vault/workspace.json";
+  const token = env.GITHUB_TOKEN || "";
+  if (!token) {
+    throw new Error("Missing GITHUB_TOKEN secret.");
+  }
+
+  const payload = {
+    version: 1,
+    publishedAt: new Date().toISOString(),
+    workspace
+  };
+  const existingSha = await getExistingGithubFileSha(owner, repo, path, branch, token);
+  const encodedPath = encodeRepoPath(path);
+  const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
+  const requestBody = {
+    message,
+    content: base64EncodeUtf8(JSON.stringify(payload, null, 2)),
+    branch
+  };
+  if (existingSha) requestBody.sha = existingSha;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Accept: "application/vnd.github+json",
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28"
+    },
+    body: JSON.stringify(requestBody)
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GitHub publish failed (${response.status}): ${body}`);
+  }
+  return { owner, repo, branch, path };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -68,6 +144,29 @@ export default {
         return json({ ok: false }, 401, cors);
       }
       return json({ ok: true }, 200, cors);
+    }
+
+    if (url.pathname === "/api/publish/github" && request.method === "POST") {
+      const body = await readJson(request);
+      const editPassword = typeof body.editPassword === "string" ? body.editPassword : "";
+      if (!timingSafeStringEqual(editPassword, env.VAULT_EDIT_PASSWORD)) {
+        return json({ ok: false, error: "unauthorized" }, 401, cors);
+      }
+      const workspace = body && typeof body.workspace === "object" && !Array.isArray(body.workspace)
+        ? body.workspace
+        : null;
+      if (!workspace) {
+        return json({ ok: false, error: "invalid workspace payload" }, 400, cors);
+      }
+      const message = typeof body.message === "string" && body.message.trim()
+        ? body.message.trim()
+        : `Publish vault workspace ${new Date().toISOString()}`;
+      try {
+        const result = await publishWorkspaceToGithub(env, message, workspace);
+        return json({ ok: true, ...result }, 200, cors);
+      } catch (error) {
+        return json({ ok: false, error: String(error && error.message ? error.message : error) }, 500, cors);
+      }
     }
 
     return json({ ok: false, error: "not found" }, 404, cors);

@@ -1,10 +1,10 @@
     const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
     const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
     const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
+    const AUTH_ENDPOINT_PUBLISH = `${AUTH_API_BASE}/api/publish/github`;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
-    const GITHUB_PUBLISH_SETTINGS_KEY = "vaultGithubPublishSettingsV1";
     const HISTORY_LIMIT = 150;
     const DEFAULT_FONT_FAMILY = "Segoe UI, Trebuchet MS, sans-serif";
     const DEFAULT_ITEMS = [];
@@ -119,6 +119,7 @@
     let historyIndex = -1;
     let isRestoringHistory = false;
     let isPublishingGithub = false;
+    let lastVerifiedEditPassword = "";
 
     async function postJson(url, payload) {
       const response = await fetch(url, {
@@ -148,7 +149,9 @@
         const response = await postJson(AUTH_ENDPOINT_EDIT, { password });
         if (!response.ok) return false;
         const data = await response.json();
-        return Boolean(data && data.ok);
+        const ok = Boolean(data && data.ok);
+        if (ok) lastVerifiedEditPassword = password;
+        return ok;
       } catch (error) {
         console.error("Edit-mode auth request failed.", error);
         return false;
@@ -1125,55 +1128,6 @@
       URL.revokeObjectURL(url);
     }
 
-    function base64EncodeUtf8(input) {
-      const bytes = new TextEncoder().encode(input);
-      let binary = "";
-      const chunkSize = 0x8000;
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        const chunk = bytes.subarray(i, i + chunkSize);
-        binary += String.fromCharCode(...chunk);
-      }
-      return btoa(binary);
-    }
-
-    function loadGithubPublishSettings() {
-      const raw = localStorage.getItem(GITHUB_PUBLISH_SETTINGS_KEY);
-      if (!raw) return {};
-      try {
-        const parsed = JSON.parse(raw);
-        return parsed && typeof parsed === "object" ? parsed : {};
-      } catch {
-        return {};
-      }
-    }
-
-    function saveGithubPublishSettings(settings) {
-      localStorage.setItem(GITHUB_PUBLISH_SETTINGS_KEY, JSON.stringify(settings));
-    }
-
-    function encodeRepoPath(path) {
-      return path.split("/").filter(Boolean).map((segment) => encodeURIComponent(segment)).join("/");
-    }
-
-    async function getExistingGithubFileSha(owner, repo, path, branch, token) {
-      const encodedPath = encodeRepoPath(path);
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`;
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "X-GitHub-Api-Version": "2022-11-28"
-        }
-      });
-      if (response.status === 404) return "";
-      if (!response.ok) {
-        const body = await response.text();
-        throw new Error(`Failed to check existing file (${response.status}): ${body}`);
-      }
-      const data = await response.json();
-      return typeof data.sha === "string" ? data.sha : "";
-    }
-
     function setPublishButtonState() {
       if (!publishBtn) return;
       publishBtn.disabled = !isEditMode || isPublishingGithub;
@@ -1182,65 +1136,35 @@
 
     async function publishWorkspaceToGithub() {
       if (isPublishingGithub) return;
-      const current = loadGithubPublishSettings();
-      const owner = (prompt("GitHub owner/user", current.owner || "bleach2004") || "").trim();
-      if (!owner) return;
-      const repo = (prompt("GitHub repo name", current.repo || "scenery.fish") || "").trim();
-      if (!repo) return;
-      const branch = (prompt("Branch name", current.branch || "main") || "").trim();
-      if (!branch) return;
-      const path = (prompt("File path in repo", current.path || "vault/workspace.json") || "").trim();
-      if (!path) return;
-      const token = (prompt("GitHub token (needs repo contents write)", "") || "").trim();
-      if (!token) {
-        alert("Publish canceled: missing token.");
-        return;
-      }
+      const publishPassword = lastVerifiedEditPassword || (prompt("Enter edit password to publish", "") || "").trim();
+      if (!publishPassword) return;
       const message = (
         prompt("Commit message", `Publish vault workspace ${new Date().toISOString()}`) ||
         ""
       ).trim() || `Publish vault workspace ${new Date().toISOString()}`;
 
-      saveGithubPublishSettings({ owner, repo, branch, path });
       syncCurrentCanvasToWorkspace();
-      const payload = {
-        version: 1,
-        publishedAt: new Date().toISOString(),
-        workspace
-      };
 
       isPublishingGithub = true;
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const existingSha = await getExistingGithubFileSha(owner, repo, path, branch, token);
-        const encodedPath = encodeRepoPath(path);
-        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
-        const requestBody = {
+        const response = await postJson(AUTH_ENDPOINT_PUBLISH, {
+          editPassword: publishPassword,
           message,
-          content: base64EncodeUtf8(JSON.stringify(payload, null, 2)),
-          branch
-        };
-        if (existingSha) requestBody.sha = existingSha;
-
-        const response = await fetch(url, {
-          method: "PUT",
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "X-GitHub-Api-Version": "2022-11-28"
-          },
-          body: JSON.stringify(requestBody)
+          workspace
         });
-
         if (!response.ok) {
           const body = await response.text();
-          throw new Error(`GitHub publish failed (${response.status}): ${body}`);
+          throw new Error(`GitHub publish failed (${response.status}): ${body || "unknown error"}`);
         }
-
+        const data = await response.json();
+        if (!data || !data.ok) {
+          throw new Error("GitHub publish failed.");
+        }
+        lastVerifiedEditPassword = publishPassword;
         setSaveStatus("Published");
-        alert(`Published to ${owner}/${repo}:${branch} (${path})`);
+        alert(`Published to ${data.owner}/${data.repo}:${data.branch} (${data.path})`);
       } catch (error) {
         console.error(error);
         setSaveStatus("Publish failed");
