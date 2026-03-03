@@ -1,6 +1,6 @@
-    // Change this value to your own password before sharing the page.
-    const VAULT_PASSWORD = "123";
-    const EDIT_MODE_PASSWORD = "123";
+    const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
+    const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
+    const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -109,13 +109,63 @@
     let selectedItemIds = [];
     let activeTextRange = null;
     let draggingLayerId = null;
-    let workspace = normalizeWorkspace(loadWorkspace());
+    let workspace = normalizeWorkspace(loadWorkspaceFromLocal());
     let currentCanvasId = workspace.activeCanvasId;
     let items = [];
     let settings = normalizeSettings({});
     let history = [];
     let historyIndex = -1;
     let isRestoringHistory = false;
+
+    async function postJson(url, payload) {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+      return response;
+    }
+
+    async function verifyVaultPassword(password) {
+      try {
+        const response = await postJson(AUTH_ENDPOINT_LOGIN, { password });
+        if (!response.ok) return false;
+        const data = await response.json();
+        return Boolean(data && data.ok);
+      } catch (error) {
+        console.error("Vault login request failed.", error);
+        return false;
+      }
+    }
+
+    async function verifyEditPassword(password) {
+      try {
+        const response = await postJson(AUTH_ENDPOINT_EDIT, { password });
+        if (!response.ok) return false;
+        const data = await response.json();
+        return Boolean(data && data.ok);
+      } catch (error) {
+        console.error("Edit-mode auth request failed.", error);
+        return false;
+      }
+    }
+
+    function generateId() {
+      if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+      }
+      if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        bytes[6] = (bytes[6] & 0x0f) | 0x40;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"));
+        return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex.slice(6, 8).join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
+      }
+      return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    }
 
     function fallbackClone(data) {
       return JSON.parse(JSON.stringify(data));
@@ -178,7 +228,7 @@
           : `Canvas ${index + 1}`;
         const id = typeof entry.id === "string" && entry.id.trim()
           ? entry.id
-          : crypto.randomUUID();
+          : generateId();
         const sourceItems = Array.isArray(entry.items) ? entry.items : fallbackClone(DEFAULT_ITEMS);
         return {
           id,
@@ -189,7 +239,7 @@
       });
       if (!canvases.length) {
         canvases.push({
-          id: crypto.randomUUID(),
+          id: generateId(),
           name: "Canvas 1",
           items: normalizeItems(fallbackClone(DEFAULT_ITEMS)),
           settings: normalizeSettings(getDefaultSettings())
@@ -209,7 +259,7 @@
       };
     }
 
-    function loadWorkspace() {
+    function loadWorkspaceFromLocal() {
       const raw = localStorage.getItem(WORKSPACE_KEY);
       if (raw) {
         try {
@@ -222,7 +272,7 @@
       return normalizeWorkspace({
         canvases: [
           {
-            id: crypto.randomUUID(),
+            id: generateId(),
             name: "Canvas 1",
             items: loadLegacyItems(),
             settings: loadLegacySettings()
@@ -928,7 +978,7 @@
         const item = getItemById(id);
         if (!item) continue;
         const copy = fallbackClone(item);
-        copy.id = crypto.randomUUID();
+        copy.id = generateId();
         copy.x += 24;
         copy.y += 24;
         copy.hidden = false;
@@ -1100,7 +1150,7 @@
       const name = raw.trim() || suggested;
       syncCurrentCanvasToWorkspace();
       const next = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         name,
         items: normalizeItems(fallbackClone(DEFAULT_ITEMS)),
         settings: normalizeSettings(getDefaultSettings())
@@ -1792,7 +1842,7 @@
 
     function addTextItem() {
       const newItem = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type: "text",
         name: `Text ${items.length + 1}`,
         x: 40 + (items.length * 16),
@@ -1896,7 +1946,7 @@
         h = 220;
       }
       const newItem = {
-        id: crypto.randomUUID(),
+        id: generateId(),
         type,
         name: nameHint || `${type.charAt(0).toUpperCase() + type.slice(1)} ${items.length + 1}`,
         x: Number.isFinite(x) ? Math.max(0, Math.round(x)) : 60 + (items.length * 14),
@@ -1936,33 +1986,39 @@
       updateDockVisibility();
     }
 
-    refreshCanvasSelectors();
-    if (sessionStorage.getItem("vaultUnlocked") === "true") {
-      unlock();
-    } else {
-      portfolio.classList.add("locked");
-      portfolio.setAttribute("aria-hidden", "true");
-      loadCanvasIntoState(workspace.publicCanvasId, false);
-      passwordInput.focus();
+    async function initializeGateState() {
+      refreshCanvasSelectors();
+      if (sessionStorage.getItem("vaultUnlocked") === "true") {
+        unlock();
+      } else {
+        portfolio.classList.add("locked");
+        portfolio.setAttribute("aria-hidden", "true");
+        loadCanvasIntoState(workspace.publicCanvasId, false);
+        passwordInput.focus();
+      }
     }
 
-    loginForm.addEventListener("submit", (event) => {
+    initializeGateState();
+
+    loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      if (passwordInput.value === VAULT_PASSWORD) {
+      const ok = await verifyVaultPassword(passwordInput.value);
+      if (ok) {
         unlock();
         errorMsg.textContent = "";
         passwordInput.value = "";
         return;
       }
-      errorMsg.textContent = "REQUEST/./SCENERY.";
+      errorMsg.textContent = "REQUEST/./SCENERY. (OR SERVER OFFLINE)";
       passwordInput.select();
     });
 
-    toggleEditBtn.addEventListener("click", () => {
+    toggleEditBtn.addEventListener("click", async () => {
       if (!isEditMode) {
         const input = prompt("SCENERY ONLY");
         if (input === null) return;
-        if (input !== EDIT_MODE_PASSWORD) {
+        const ok = await verifyEditPassword(input);
+        if (!ok) {
           alert("XD");
           return;
         }
