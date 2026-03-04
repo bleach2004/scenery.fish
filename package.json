@@ -6,7 +6,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "deploy:scenery": "wrangler deploy --config wrangler.scenery.jsonc",
+    "deploy:marisu": "wrangler deploy --config wrangler.marisu.jsonc"
   },
   "engines": {
     "node": ">=18.0.0"

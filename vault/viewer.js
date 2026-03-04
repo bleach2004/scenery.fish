@@ -1,5 +1,6 @@
 const WORKSPACE_URL = "./workspace.json";
 const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
+const WORKSPACE_API_URL = `${AUTH_API_BASE}/api/workspace/published`;
 const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
 const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
 let currentItems = [];
@@ -115,10 +116,13 @@ async function loadAndRender() {
   canvas.innerHTML = "";
 
   try {
-    const response = await fetch(WORKSPACE_URL, { cache: "no-store" });
+    let response = await fetch(`${WORKSPACE_API_URL}?t=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) {
+      response = await fetch(`${WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
+    }
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const payload = await response.json();
-    const selected = pickCanvas(payload);
+    const selected = pickCanvas(payload && payload.payload ? payload.payload : payload);
     if (!selected) return;
 
     const settings = selected.settings || {};
