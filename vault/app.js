@@ -2122,10 +2122,40 @@
         currentCanvasId = workspace.activeCanvasId;
       }
       refreshCanvasSelectors();
-      unlock();
+      if (gate) {
+        gate.removeAttribute("hidden");
+        gate.style.display = "";
+      }
+      portfolio.classList.add("locked");
+      portfolio.setAttribute("aria-hidden", "true");
+      passwordInput.focus();
     }
 
     initializeGateState();
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const input = passwordInput.value;
+      const ok = await verifyVaultPassword(input);
+      if (ok) {
+        unlock();
+        errorMsg.textContent = "";
+        passwordInput.value = "";
+        return;
+      }
+
+      // Compatibility fallback: allow edit password to unlock too.
+      const editOk = await verifyEditPassword(input);
+      if (editOk) {
+        unlock();
+        errorMsg.textContent = "";
+        passwordInput.value = "";
+        return;
+      }
+
+      errorMsg.textContent = "REQUEST/./SCENERY. (OR SERVER OFFLINE)";
+      passwordInput.select();
+    });
 
     toggleEditBtn.addEventListener("click", async () => {
       const input = prompt("SCENERY ONLY");
