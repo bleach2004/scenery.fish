@@ -2,10 +2,6 @@
   if (window.__SCENERY_CURSOR_TRAIL__) return;
   window.__SCENERY_CURSOR_TRAIL__ = true;
 
-  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const finePointer = window.matchMedia("(pointer: fine)").matches;
-  if (prefersReducedMotion || !finePointer) return;
-
   const body = document.body;
   if (!body) return;
 
@@ -107,7 +103,6 @@
   };
 
   const canvas = document.createElement("canvas");
-  canvas.id = "canvas";
   canvas.setAttribute("aria-hidden", "true");
   canvas.style.position = "fixed";
   canvas.style.inset = "0";
