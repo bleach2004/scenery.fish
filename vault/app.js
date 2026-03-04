@@ -2116,12 +2116,18 @@
     }
 
     async function initializeGateState() {
+      isUnlocked = false;
       const publishedWorkspace = await loadPublishedWorkspace();
       if (publishedWorkspace) {
         workspace = publishedWorkspace;
         currentCanvasId = workspace.activeCanvasId;
       }
       refreshCanvasSelectors();
+      toolbar.setAttribute("hidden", "");
+      sidePanel.setAttribute("hidden", "");
+      portfolio.setAttribute("hidden", "");
+      toolbar.style.display = "none";
+      sidePanel.style.display = "none";
       if (gate) {
         gate.removeAttribute("hidden");
         gate.style.display = "";
@@ -2138,15 +2144,6 @@
       const input = passwordInput.value;
       const ok = await verifyVaultPassword(input);
       if (ok) {
-        unlock();
-        errorMsg.textContent = "";
-        passwordInput.value = "";
-        return;
-      }
-
-      // Compatibility fallback: allow edit password to unlock too.
-      const editOk = await verifyEditPassword(input);
-      if (editOk) {
         unlock();
         errorMsg.textContent = "";
         passwordInput.value = "";
