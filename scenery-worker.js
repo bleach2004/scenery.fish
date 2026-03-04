@@ -83,10 +83,20 @@ async function fetchSiteFile(pathname, search, request) {
 }
 
 function toSiteResponse(upstream, pathname, method) {
-  const headers = new Headers(upstream.headers);
+  const headers = new Headers();
+  const passthroughHeaders = ["content-length", "content-range", "accept-ranges", "etag", "last-modified"];
+  for (const name of passthroughHeaders) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
   const contentType = contentTypeFor(pathname);
   if (contentType) headers.set("content-type", contentType);
   headers.set("cache-control", cacheControlFor(pathname));
+  headers.set(
+    "content-security-policy",
+    "default-src 'self' https: data: blob: 'unsafe-inline'; media-src 'self' https: data: blob:;"
+  );
+  headers.set("x-content-type-options", "nosniff");
   headers.set("x-powered-by", "scenery-worker");
   if (method === "HEAD") {
     return new Response(null, { status: upstream.status, headers });
