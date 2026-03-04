@@ -72,6 +72,13 @@ async function fetchSiteFile(pathname, search, request) {
   const headers = new Headers();
   const range = request.headers.get("range");
   if (range) headers.set("range", range);
+  const useEdgeCache = !pathname.endsWith(".html");
+  if (!useEdgeCache) {
+    return fetch(upstream, {
+      method: "GET",
+      headers
+    });
+  }
   return fetch(upstream, {
     method: "GET",
     headers,
@@ -84,7 +91,9 @@ async function fetchSiteFile(pathname, search, request) {
 
 function toSiteResponse(upstream, pathname, method) {
   const headers = new Headers();
-  const passthroughHeaders = ["content-length", "content-range", "accept-ranges", "etag", "last-modified"];
+  const passthroughHeaders = pathname.endsWith(".html")
+    ? ["content-length", "content-range", "accept-ranges"]
+    : ["content-length", "content-range", "accept-ranges", "etag", "last-modified"];
   for (const name of passthroughHeaders) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);
