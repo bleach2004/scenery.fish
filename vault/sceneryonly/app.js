@@ -2,7 +2,7 @@
     const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
     const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
     const AUTH_ENDPOINT_PUBLISH = `${AUTH_API_BASE}/api/publish/github`;
-    const PUBLISHED_WORKSPACE_URL = "../workspace.json";
+    const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
