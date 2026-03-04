@@ -1,7 +1,9 @@
-    const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
-    const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
-    const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
-    const AUTH_ENDPOINT_PUBLISH = `${AUTH_API_BASE}/api/publish/github`;
+    const DEFAULT_AUTH_API_BASE = "https://marisu.bleach-542.workers.dev";
+    const AUTH_API_BASES = Array.from(new Set([
+      window.location.origin,
+      window.SCENERY_AUTH_BASE || "",
+      DEFAULT_AUTH_API_BASE
+    ].map((entry) => String(entry || "").trim().replace(/\/+$/, "")).filter(Boolean)));
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
@@ -122,20 +124,40 @@
     let isPublishingGithub = false;
     let lastVerifiedEditPassword = "";
 
+    function buildAuthApiUrl(base, endpointPath) {
+      if (!base) return endpointPath;
+      return `${base}${endpointPath}`;
+    }
+
     async function postJson(url, payload) {
-      const response = await fetch(url, {
+      return fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
       });
-      return response;
+    }
+
+    async function postJsonWithAuthFallback(endpointPath, payload) {
+      let lastError = null;
+      for (const base of AUTH_API_BASES) {
+        const url = buildAuthApiUrl(base, endpointPath);
+        try {
+          const response = await postJson(url, payload);
+          if (response.status === 404 || response.status === 405) continue;
+          return response;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      if (lastError) throw lastError;
+      throw new Error(`No auth API endpoints reachable for ${endpointPath}.`);
     }
 
     async function verifyVaultPassword(password) {
       try {
-        const response = await postJson(AUTH_ENDPOINT_LOGIN, { password });
+        const response = await postJsonWithAuthFallback("/api/auth/login", { password });
         if (!response.ok) return false;
         const data = await response.json();
         return Boolean(data && data.ok);
@@ -147,7 +169,7 @@
 
     async function verifyEditPassword(password) {
       try {
-        const response = await postJson(AUTH_ENDPOINT_EDIT, { password });
+        const response = await postJsonWithAuthFallback("/api/auth/edit", { password });
         if (!response.ok) return false;
         const data = await response.json();
         const ok = Boolean(data && data.ok);
@@ -290,7 +312,7 @@
 
     async function loadPublishedWorkspace() {
       try {
-        const response = await fetch(PUBLISHED_WORKSPACE_URL, { cache: "no-store" });
+        const response = await fetch(`${PUBLISHED_WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return null;
         const payload = await response.json();
         if (!payload || typeof payload !== "object") return null;
@@ -1197,7 +1219,7 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const response = await postJson(AUTH_ENDPOINT_PUBLISH, {
+        const response = await postJsonWithAuthFallback("/api/publish/github", {
           editPassword: publishPassword,
           message,
           workspace
