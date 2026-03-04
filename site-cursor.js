@@ -13,8 +13,8 @@
   const hotspotX = 8;
   const hotspotY = 8;
   const ghostSize = 34; // Slightly bigger than the visible cursor.
-  const spawnIntervalMs = 16;
-  const fadeDurationMs = 420;
+  const spawnIntervalMs = 34;
+  const fadeDurationMs = 760;
   const maxGhosts = 120;
 
   const layer = document.createElement("div");
