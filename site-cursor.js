@@ -12,9 +12,9 @@
   const cursorUrl = "/assets/cursors/cursor.png";
   const hotspotX = 8;
   const hotspotY = 8;
-  const ghostSize = 34; // Slightly bigger than the visible cursor.
-  const spawnIntervalMs = 34;
-  const fadeDurationMs = 760;
+  const ghostSize = 44; // Bigger than the visible cursor.
+  const spawnIntervalMs = 48;
+  const fadeDurationMs = 980;
   const maxGhosts = 120;
 
   const layer = document.createElement("div");
