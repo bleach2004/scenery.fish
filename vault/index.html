@@ -8,26 +8,13 @@
   <script src="../site-cursor.js" defer></script>
 </head>
 <body>
-  <header class="topbar" hidden>
+  <header class="topbar">
     <h1>Vault</h1>
     <button id="enterEditorBtn" class="editor-link" type="button">Scenery Only</button>
   </header>
-  <main class="canvas-wrap" hidden>
+  <main class="canvas-wrap">
     <div id="canvas" class="canvas" aria-label="Vault canvas"></div>
   </main>
-  <section id="gate" class="gate" aria-label="Vault login">
-    <div class="gate-panel">
-      <h2>SCENERY'S VAULT</h2>
-      <p>ENTER PASSWORD</p>
-      <form id="loginForm">
-        <div class="row">
-          <input id="passwordInput" type="password" autocomplete="off" required />
-          <button type="submit">Unlock</button>
-        </div>
-      </form>
-      <p id="errorMsg" class="error" role="alert" aria-live="polite"></p>
-    </div>
-  </section>
   <script src="./viewer.js" defer></script>
 </body>
 </html>
