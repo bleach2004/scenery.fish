@@ -1,9 +1,5 @@
     const DEFAULT_AUTH_API_BASE = "https://marisu.bleach-542.workers.dev";
-    const AUTH_API_BASES = Array.from(new Set([
-      window.location.origin,
-      window.SCENERY_AUTH_BASE || "",
-      DEFAULT_AUTH_API_BASE
-    ].map((entry) => String(entry || "").trim().replace(/\/+$/, "")).filter(Boolean)));
+    const AUTH_API_BASE = String(window.SCENERY_AUTH_BASE || DEFAULT_AUTH_API_BASE).trim().replace(/\/+$/, "");
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
@@ -124,11 +120,6 @@
     let isPublishingGithub = false;
     let lastVerifiedEditPassword = "";
 
-    function buildAuthApiUrl(base, endpointPath) {
-      if (!base) return endpointPath;
-      return `${base}${endpointPath}`;
-    }
-
     async function postJson(url, payload) {
       return fetch(url, {
         method: "POST",
@@ -139,25 +130,9 @@
       });
     }
 
-    async function postJsonWithAuthFallback(endpointPath, payload) {
-      let lastError = null;
-      for (const base of AUTH_API_BASES) {
-        const url = buildAuthApiUrl(base, endpointPath);
-        try {
-          const response = await postJson(url, payload);
-          if (response.status === 404 || response.status === 405) continue;
-          return response;
-        } catch (error) {
-          lastError = error;
-        }
-      }
-      if (lastError) throw lastError;
-      throw new Error(`No auth API endpoints reachable for ${endpointPath}.`);
-    }
-
     async function verifyVaultPassword(password) {
       try {
-        const response = await postJsonWithAuthFallback("/api/auth/login", { password });
+        const response = await postJson(`${AUTH_API_BASE}/api/auth/login`, { password });
         if (!response.ok) return false;
         const data = await response.json();
         return Boolean(data && data.ok);
@@ -169,7 +144,7 @@
 
     async function verifyEditPassword(password) {
       try {
-        const response = await postJsonWithAuthFallback("/api/auth/edit", { password });
+        const response = await postJson(`${AUTH_API_BASE}/api/auth/edit`, { password });
         if (!response.ok) return false;
         const data = await response.json();
         const ok = Boolean(data && data.ok);
@@ -1219,7 +1194,7 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const response = await postJsonWithAuthFallback("/api/publish/github", {
+        const response = await postJson(`${AUTH_API_BASE}/api/publish/github`, {
           editPassword: publishPassword,
           message,
           workspace
