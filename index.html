@@ -44,18 +44,6 @@
       pointer-events: none;
     }
 
-    #invisible-btn {
-      position: fixed;
-      bottom: var(--ui-offset);
-      right: var(--ui-offset);
-      width: var(--btn-size);
-      height: var(--btn-size);
-      background: transparent;
-      border: none;
-      cursor: var(--site-cursor);
-      z-index: 10000;
-    }
-
     #secret-btn {
       display: none;
       position: fixed;
@@ -151,16 +139,13 @@
       bottomRowMaxCol: 9,
       colRange: 4,
       topLeftThreshold: 0.1,
-      zoomThreshold: 0.8,
       middleCols: [5, 4, 3, 2, 1, 0, 9, 8, 7, 6]
     };
 
     const sprite = document.getElementById("sprite");
     const secretBtn = document.getElementById("secret-btn");
-    const invisibleBtn = document.createElement("button");
 
     let mouseInTopLeft = false;
-    let zoomOk = false;
 
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -181,13 +166,7 @@
     }
 
     function updateSecretBtnVisibility() {
-      secretBtn.style.display = zoomOk && mouseInTopLeft ? "block" : "none";
-    }
-
-    function updateZoomState() {
-      const zoomLevel = window.outerWidth / window.innerWidth;
-      zoomOk = zoomLevel < config.zoomThreshold;
-      updateSecretBtnVisibility();
+      secretBtn.style.display = mouseInTopLeft ? "block" : "none";
     }
 
     function handleMouseMove(event) {
@@ -199,20 +178,12 @@
       updateSecretBtnVisibility();
     }
 
-    invisibleBtn.id = "invisible-btn";
-    invisibleBtn.setAttribute("aria-label", "Go to Matrix");
-    invisibleBtn.setAttribute("title", "Go to Matrix");
-    invisibleBtn.addEventListener("click", () => {
-      window.location.href = "matrix.html";
-    });
-    document.body.appendChild(invisibleBtn);
-
     window.addEventListener("mousemove", handleMouseMove);
-    window.addEventListener("resize", updateZoomState);
-    window.addEventListener("load", updateZoomState);
+    window.addEventListener("resize", updateSecretBtnVisibility);
+    window.addEventListener("load", updateSecretBtnVisibility);
 
     secretBtn.addEventListener("click", () => {
-      alert("H87572MRA");
+      window.location.href = "vault/";
     });
   </script>
 </body>

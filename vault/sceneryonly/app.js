@@ -377,6 +377,14 @@
       saveStatus.textContent = text;
     }
 
+    function formatSaveTime() {
+      return new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
     function setPanelCollapsed(panelId, collapsed) {
       const group = sidePanel.querySelector(`.panel-group[data-panel-id="${panelId}"]`);
       const toggle = sidePanel.querySelector(`[data-panel-toggle="${panelId}"]`);
@@ -2179,7 +2187,9 @@
 
     saveBtn.addEventListener("click", () => {
       const saved = persistAll(true);
-      if (!saved) {
+      if (saved) {
+        setSaveStatus(`Saved ${formatSaveTime()}`);
+      } else {
         alert("Save failed. Storage may be full or blocked by browser settings.");
       }
     });
