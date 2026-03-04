@@ -1,0 +1,17 @@
+name = "scenery-fish-worker"
+main = "worker.js"
+compatibility_date = "2026-03-03"
+
+# Optional route if you map this worker to your custom domain.
+# routes = [{ pattern = "scenery.fish/api/*", zone_name = "scenery.fish" }]
+
+# Required worker secrets:
+# wrangler secret put VAULT_LOGIN_PASSWORD
+# wrangler secret put VAULT_EDIT_PASSWORD
+# wrangler secret put GITHUB_TOKEN
+#
+# Optional worker vars/secrets (defaults shown in code):
+# GITHUB_OWNER=bleach2004
+# GITHUB_REPO=scenery.fish
+# GITHUB_BRANCH=main
+# GITHUB_PATH=vault/workspace.json
