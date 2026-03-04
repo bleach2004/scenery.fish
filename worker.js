@@ -121,16 +121,21 @@ export default {
     const url = new URL(request.url);
     const origin = request.headers.get("origin") || "*";
     const cors = getCorsHeaders(origin);
+    const isApiPath = url.pathname.startsWith("/api/");
 
-    if (request.method === "OPTIONS" && url.pathname.startsWith("/api/")) {
+    if (!isApiPath) {
+      // Keep site traffic working even if worker API secrets are not configured.
+      return fetch(request);
+    }
+
+    if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: cors });
     }
 
-    if (!env.VAULT_LOGIN_PASSWORD || !env.VAULT_EDIT_PASSWORD) {
-      return json({ ok: false, error: "missing worker secrets" }, 500, cors);
-    }
-
     if (url.pathname === "/api/auth/login" && request.method === "POST") {
+      if (!env.VAULT_LOGIN_PASSWORD || !env.VAULT_EDIT_PASSWORD) {
+        return json({ ok: false, error: "missing worker secrets" }, 500, cors);
+      }
       const body = await readJson(request);
       const password = typeof body.password === "string" ? body.password : "";
       if (!timingSafeStringEqual(password, env.VAULT_LOGIN_PASSWORD)) {
@@ -140,6 +145,9 @@ export default {
     }
 
     if (url.pathname === "/api/auth/edit" && request.method === "POST") {
+      if (!env.VAULT_LOGIN_PASSWORD || !env.VAULT_EDIT_PASSWORD) {
+        return json({ ok: false, error: "missing worker secrets" }, 500, cors);
+      }
       const body = await readJson(request);
       const password = typeof body.password === "string" ? body.password : "";
       if (!timingSafeStringEqual(password, env.VAULT_EDIT_PASSWORD)) {
@@ -149,6 +157,9 @@ export default {
     }
 
     if (url.pathname === "/api/publish/github" && request.method === "POST") {
+      if (!env.VAULT_LOGIN_PASSWORD || !env.VAULT_EDIT_PASSWORD || !env.GITHUB_TOKEN) {
+        return json({ ok: false, error: "missing worker secrets" }, 500, cors);
+      }
       const body = await readJson(request);
       const editPassword = typeof body.editPassword === "string" ? body.editPassword : "";
       if (!timingSafeStringEqual(editPassword, env.VAULT_EDIT_PASSWORD)) {
