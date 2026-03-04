@@ -1,4 +1,4 @@
-    const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "";
+    const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
     const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
     const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
     const AUTH_ENDPOINT_PUBLISH = `${AUTH_API_BASE}/api/publish/github`;

@@ -1,5 +1,5 @@
 const WORKSPACE_URL = "./workspace.json";
-const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "";
+const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.workers.dev";
 const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
 const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
 let currentItems = [];
@@ -181,7 +181,6 @@ function setupViewerGate() {
   const form = document.getElementById("loginForm");
   const input = document.getElementById("passwordInput");
   const error = document.getElementById("errorMsg");
-  const submit = form ? form.querySelector("button[type='submit'], button") : null;
   if (!form || !input || !error) {
     unlockViewer();
     return;
@@ -190,10 +189,7 @@ function setupViewerGate() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const password = input.value;
-    if (submit) submit.disabled = true;
-    error.textContent = "Checking...";
     const ok = await verifyVaultLoginPassword(password);
-    if (submit) submit.disabled = false;
     if (!ok) {
       error.textContent = "REQUEST/./SCENERY. (OR SERVER OFFLINE)";
       input.select();
