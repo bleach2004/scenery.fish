@@ -9,13 +9,10 @@
   const body = document.body;
   if (!body) return;
 
-  const cursorUrl = "/assets/cursors/cursor.png";
-  const HOTSPOT_X = 8;
-  const HOTSPOT_Y = 8;
-  const CURSOR_SIZE = 28;
-  const ECHO_COUNT = 14;
-
-  const layer = document.createElement("div");
+  const TRAIL_LIMIT = 25;
+  const PARTICLE_SPAWN_COUNT = 2;
+  const PARTICLE_LIFE = 40;
+  const layer = document.createElement("canvas");
   layer.setAttribute("aria-hidden", "true");
   layer.style.position = "fixed";
   layer.style.inset = "0";
@@ -23,108 +20,105 @@
   layer.style.zIndex = "2147483646";
   layer.style.overflow = "hidden";
 
-  const echoes = [];
-  for (let i = 0; i < ECHO_COUNT; i += 1) {
-    const el = document.createElement("div");
-    const alpha = 0.38 - (i * 0.023);
-    const scale = 1 - (i * 0.02);
-
-    el.style.position = "absolute";
-    el.style.width = `${CURSOR_SIZE}px`;
-    el.style.height = `${CURSOR_SIZE}px`;
-    el.style.backgroundImage = `url("${cursorUrl}")`;
-    el.style.backgroundSize = "contain";
-    el.style.backgroundRepeat = "no-repeat";
-    el.style.backgroundPosition = "center";
-    el.style.opacity = "0";
-    el.style.filter = `drop-shadow(0 0 ${4 + (i * 0.35)}px rgba(255,255,255,${Math.max(0.08, alpha)}))`;
-    el.style.willChange = "transform, opacity";
-
-    layer.appendChild(el);
-
-    echoes.push({
-      el,
-      x: window.innerWidth / 2,
-      y: window.innerHeight / 2,
-      baseAlpha: Math.max(0.03, alpha),
-      scale: Math.max(0.64, scale)
-    });
+  const ctx = layer.getContext("2d");
+  if (!ctx) {
+    window.__SCENERY_CURSOR_TRAIL__ = false;
+    return;
   }
-
-  const head = document.createElement("div");
-  head.style.position = "absolute";
-  head.style.width = `${CURSOR_SIZE}px`;
-  head.style.height = `${CURSOR_SIZE}px`;
-  head.style.backgroundImage = `url("${cursorUrl}")`;
-  head.style.backgroundSize = "contain";
-  head.style.backgroundRepeat = "no-repeat";
-  head.style.backgroundPosition = "center";
-  head.style.filter = "none";
-  head.style.opacity = "0";
-  head.style.willChange = "transform, opacity";
-  layer.appendChild(head);
 
   body.appendChild(layer);
 
-  let targetX = window.innerWidth / 2;
-  let targetY = window.innerHeight / 2;
-  let currentX = targetX;
-  let currentY = targetY;
+  let width = layer.width = window.innerWidth;
+  let height = layer.height = window.innerHeight;
+  const mouse = { x: width / 2, y: height / 2 };
+  const trail = [];
+  const particles = [];
   let rafId = 0;
   let visible = false;
 
   function show() {
     visible = true;
-    head.style.opacity = "1";
   }
 
   function hide() {
     visible = false;
-    head.style.opacity = "0";
-    for (const e of echoes) e.el.style.opacity = "0";
-  }
-
-  function tick() {
-    rafId = requestAnimationFrame(tick);
-
-    // Head follows quickly, trail follows progressively slower.
-    currentX += (targetX - currentX) * 0.34;
-    currentY += (targetY - currentY) * 0.34;
-
-    head.style.transform = `translate(${currentX - HOTSPOT_X}px, ${currentY - HOTSPOT_Y}px)`;
-
-    let leaderX = currentX;
-    let leaderY = currentY;
-
-    for (let i = 0; i < echoes.length; i += 1) {
-      const e = echoes[i];
-      const drag = 0.26 - (i * 0.01);
-      e.x += (leaderX - e.x) * Math.max(0.07, drag);
-      e.y += (leaderY - e.y) * Math.max(0.07, drag);
-
-      e.el.style.transform = `translate(${e.x - HOTSPOT_X}px, ${e.y - HOTSPOT_Y}px) scale(${e.scale})`;
-      e.el.style.opacity = visible ? String(e.baseAlpha) : "0";
-
-      leaderX = e.x;
-      leaderY = e.y;
-    }
-  }
-
-  function onMove(event) {
-    targetX = event.clientX;
-    targetY = event.clientY;
-    if (!visible) show();
+    trail.length = 0;
+    particles.length = 0;
+    ctx.clearRect(0, 0, width, height);
   }
 
   function onEnter(event) {
-    targetX = event.clientX;
-    targetY = event.clientY;
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
+    show();
+  }
+
+  function onMove(event) {
+    mouse.x = event.clientX;
+    mouse.y = event.clientY;
+    trail.push({ x: mouse.x, y: mouse.y });
+    if (trail.length > TRAIL_LIMIT) trail.shift();
+
+    for (let i = 0; i < PARTICLE_SPAWN_COUNT; i += 1) {
+      particles.push({
+        x: mouse.x,
+        y: mouse.y,
+        vx: (Math.random() - 0.5) * 2,
+        vy: (Math.random() - 0.5) * 2,
+        life: PARTICLE_LIFE
+      });
+    }
+
     if (!visible) show();
   }
 
   function onResize() {
-    targetX = Math.min(targetX, window.innerWidth);
-    targetY = Math.min(targetY, window.innerHeight);
+    width = layer.width = window.innerWidth;
+    height = layer.height = window.innerHeight;
+  }
+
+  function tick() {
+    rafId = requestAnimationFrame(tick);
+    if (!visible) return;
+
+    ctx.clearRect(0, 0, width, height);
+
+    // 1) White glow line trail
+    if (trail.length > 1) {
+      ctx.beginPath();
+      for (let i = 0; i < trail.length; i += 1) {
+        const point = trail[i];
+        if (i === 0) ctx.moveTo(point.x, point.y);
+        else ctx.lineTo(point.x, point.y);
+      }
+      ctx.strokeStyle = "rgba(255,255,255,0.3)";
+      ctx.lineWidth = 2;
+      ctx.shadowBlur = 15;
+      ctx.shadowColor = "white";
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+
+    // 2) White particles
+    for (let i = particles.length - 1; i >= 0; i -= 1) {
+      const particle = particles[i];
+      particle.x += particle.vx;
+      particle.y += particle.vy;
+      particle.life -= 1;
+
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,255,255,${particle.life / PARTICLE_LIFE})`;
+      ctx.fill();
+
+      if (particle.life <= 0) particles.splice(i, 1);
+    }
+
+    // 3) White cursor dot
+    ctx.beginPath();
+    ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "white";
+    ctx.fill();
   }
 
   window.addEventListener("mousemove", onMove, { passive: true });

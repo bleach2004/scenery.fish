@@ -1,6 +1,7 @@
-    const DEFAULT_AUTH_API_BASE = "https://marisu.bleach-542.workers.dev";
-    const AUTH_API_BASE = String(window.SCENERY_AUTH_BASE || DEFAULT_AUTH_API_BASE).trim().replace(/\/+$/, "");
+    const AUTH_API_BASE = String(window.SCENERY_AUTH_BASE || "").trim().replace(/\/+$/, "");
+    const API_BASE = AUTH_API_BASE || "";
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
+    const PUBLISH_MAX_BYTES = 6 * 1024 * 1024;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -120,19 +121,79 @@
     let isPublishingGithub = false;
     let lastVerifiedEditPassword = "";
 
-    async function postJson(url, payload) {
-      return fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(payload)
-      });
+    function apiUrl(path) {
+      if (!path.startsWith("/")) return path;
+      return `${API_BASE}${path}`;
+    }
+
+    function delay(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function estimateJsonBytes(value) {
+      try {
+        return new TextEncoder().encode(JSON.stringify(value)).length;
+      } catch {
+        return Number.POSITIVE_INFINITY;
+      }
+    }
+
+    function formatBytes(bytes) {
+      if (!Number.isFinite(bytes) || bytes < 0) return "unknown size";
+      const units = ["B", "KB", "MB", "GB"];
+      let size = bytes;
+      let unitIndex = 0;
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+      return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`;
+    }
+
+    async function postJson(url, payload, options = {}) {
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 20000;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload),
+          cache: "no-store",
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    async function postJsonWithRetry(url, payload, options = {}) {
+      const attempts = Number.isFinite(options.attempts) ? Math.max(1, options.attempts) : 3;
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 20000;
+      const retryDelayMs = Number.isFinite(options.retryDelayMs) ? Math.max(0, options.retryDelayMs) : 800;
+      let lastError = null;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const response = await postJson(url, payload, { timeoutMs });
+          if (response.status >= 500 && attempt < attempts) {
+            await delay(retryDelayMs * attempt);
+            continue;
+          }
+          return response;
+        } catch (error) {
+          lastError = error;
+          if (attempt >= attempts) throw error;
+          await delay(retryDelayMs * attempt);
+        }
+      }
+      throw lastError || new Error("Request failed.");
     }
 
     async function verifyVaultPassword(password) {
       try {
-        const response = await postJson(`${AUTH_API_BASE}/api/auth/login`, { password });
+        const response = await postJson(apiUrl("/api/auth/login"), { password });
         if (!response.ok) return false;
         const data = await response.json();
         return Boolean(data && data.ok);
@@ -144,7 +205,7 @@
 
     async function verifyEditPassword(password) {
       try {
-        const response = await postJson(`${AUTH_API_BASE}/api/auth/edit`, { password });
+        const response = await postJson(apiUrl("/api/auth/edit"), { password });
         if (!response.ok) return false;
         const data = await response.json();
         const ok = Boolean(data && data.ok);
@@ -1194,14 +1255,35 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const response = await postJson(`${AUTH_API_BASE}/api/publish/github`, {
+        const publishPayload = {
           editPassword: publishPassword,
           message,
           workspace
+        };
+        const payloadBytes = estimateJsonBytes(publishPayload);
+        if (payloadBytes > PUBLISH_MAX_BYTES) {
+          throw new Error(
+            `Workspace payload is too large (${formatBytes(payloadBytes)}). ` +
+            `Current publish limit is ${formatBytes(PUBLISH_MAX_BYTES)}; reduce embedded media size and try again.`
+          );
+        }
+        const response = await postJsonWithRetry(apiUrl("/api/publish/github"), publishPayload, {
+          attempts: 3,
+          timeoutMs: 45000,
+          retryDelayMs: 900
         });
         if (!response.ok) {
           const body = await response.text();
-          throw new Error(`GitHub publish failed (${response.status}): ${body || "unknown error"}`);
+          let detail = body || "unknown error";
+          try {
+            const parsed = body ? JSON.parse(body) : null;
+            if (parsed && typeof parsed.error === "string" && parsed.error.trim()) {
+              detail = parsed.error.trim();
+            }
+          } catch {
+            // Keep raw body text.
+          }
+          throw new Error(`GitHub publish failed (${response.status}): ${detail}`);
         }
         const data = await response.json();
         if (!data || !data.ok) {
@@ -1213,7 +1295,13 @@
       } catch (error) {
         console.error(error);
         setSaveStatus("Publish failed");
-        alert(`Publish failed: ${error.message}`);
+        const rawMessage = String(error && error.message ? error.message : error || "Unknown error");
+        const fetchLikeError = /NetworkError|Failed to fetch|Load failed|fetch resource/i.test(rawMessage);
+        const timeoutError = error && error.name === "AbortError";
+        const friendlyMessage = (fetchLikeError || timeoutError)
+          ? "Network request to publish API failed or timed out. Please retry; if it keeps happening, publish a smaller workspace (especially media)."
+          : rawMessage;
+        alert(`Publish failed: ${friendlyMessage}`);
       } finally {
         isPublishingGithub = false;
         setPublishButtonState();
