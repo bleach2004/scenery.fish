@@ -12,9 +12,11 @@
   const cursorUrl = "/assets/cursors/cursor.png";
   const hotspotX = 8;
   const hotspotY = 8;
-  const ghostSize = 72; // Significantly bigger than the visible cursor.
-  const spawnIntervalMs = 95;
-  const fadeDurationMs = 1800;
+  const cursorImageWidth = 55;
+  const cursorImageHeight = 55;
+  const ghostSize = 62;
+  const spawnIntervalMs = 72;
+  const fadeDurationMs = 1200;
   const maxGhosts = 120;
 
   const layer = document.createElement("div");
@@ -32,12 +34,14 @@
   let visible = false;
 
   function spawnGhost(x, y, now) {
+    const scaleX = ghostSize / cursorImageWidth;
+    const scaleY = ghostSize / cursorImageHeight;
     const ghost = document.createElement("div");
     ghost.style.position = "absolute";
     ghost.style.width = `${ghostSize}px`;
     ghost.style.height = `${ghostSize}px`;
-    ghost.style.left = `${Math.round(x - hotspotX - (ghostSize - 16) / 2)}px`;
-    ghost.style.top = `${Math.round(y - hotspotY - (ghostSize - 16) / 2)}px`;
+    ghost.style.left = `${Math.round(x - (hotspotX * scaleX))}px`;
+    ghost.style.top = `${Math.round(y - (hotspotY * scaleY))}px`;
     ghost.style.backgroundImage = `url("${cursorUrl}")`;
     ghost.style.backgroundSize = "contain";
     ghost.style.backgroundRepeat = "no-repeat";
