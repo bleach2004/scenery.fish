@@ -94,7 +94,7 @@ function toSiteResponse(upstream, pathname, method) {
   headers.set("cache-control", cacheControlFor(pathname));
   headers.set(
     "content-security-policy",
-    "default-src 'self' https: data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; style-src 'self' 'unsafe-inline' https:; img-src 'self' https: data: blob:; font-src 'self' https: data:; connect-src 'self' https:; media-src 'self' https: data: blob:;"
+    "default-src 'self' https: data: blob: 'unsafe-inline'; media-src 'self' https: data: blob:;"
   );
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-powered-by", "scenery-worker");
