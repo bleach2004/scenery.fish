@@ -3,7 +3,6 @@ const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "";
 const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
 const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
 let currentItems = [];
-let isUnlocked = false;
 
 function asNumber(value, fallback) {
   const next = Number(value);
@@ -156,55 +155,6 @@ async function verifyAnyVaultPassword(password) {
   }
 }
 
-async function verifyVaultLoginPassword(password) {
-  try {
-    const response = await postJson(AUTH_ENDPOINT_LOGIN, { password });
-    return response.ok;
-  } catch (error) {
-    console.error("Vault login request failed.", error);
-    return false;
-  }
-}
-
-function unlockViewer() {
-  isUnlocked = true;
-  const gate = document.getElementById("gate");
-  const topbar = document.querySelector(".topbar");
-  const wrap = document.querySelector(".canvas-wrap");
-  if (gate) gate.style.display = "none";
-  if (topbar) topbar.hidden = false;
-  if (wrap) wrap.hidden = false;
-  loadAndRender();
-}
-
-function setupViewerGate() {
-  const form = document.getElementById("loginForm");
-  const input = document.getElementById("passwordInput");
-  const error = document.getElementById("errorMsg");
-  const submit = form ? form.querySelector("button[type='submit'], button") : null;
-  if (!form || !input || !error) {
-    unlockViewer();
-    return;
-  }
-  input.focus();
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const password = input.value;
-    if (submit) submit.disabled = true;
-    error.textContent = "Checking...";
-    const ok = await verifyVaultLoginPassword(password);
-    if (submit) submit.disabled = false;
-    if (!ok) {
-      error.textContent = "REQUEST/./SCENERY. (OR SERVER OFFLINE)";
-      input.select();
-      return;
-    }
-    error.textContent = "";
-    input.value = "";
-    unlockViewer();
-  });
-}
-
 function setupEditorEntry() {
   const button = document.getElementById("enterEditorBtn");
   if (!button) return;
@@ -222,9 +172,6 @@ function setupEditorEntry() {
   });
 }
 
-setupViewerGate();
+loadAndRender();
 setupEditorEntry();
-window.addEventListener("resize", () => {
-  if (!isUnlocked) return;
-  applyResponsiveLayout();
-});
+window.addEventListener("resize", applyResponsiveLayout);

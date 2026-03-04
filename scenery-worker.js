@@ -1,5 +1,7 @@
 const API_ORIGIN = "https://marisu.bleach-542.workers.dev";
 const SITE_ORIGIN = "https://raw.githubusercontent.com/bleach2004/scenery.fish/main";
+const VAULT_AUTH_CACHE_TTL_MS = 5 * 60 * 1000;
+const vaultAuthCache = new Map();
 
 function hasExtension(pathname) {
   const last = pathname.split("/").pop() || "";
@@ -60,6 +62,48 @@ function withPath(origin, pathname, search) {
   return `${origin}${pathname}${search || ""}`;
 }
 
+function parseBasicPassword(authHeader) {
+  if (!authHeader || !authHeader.startsWith("Basic ")) return "";
+  try {
+    const decoded = atob(authHeader.slice(6).trim());
+    const splitAt = decoded.indexOf(":");
+    if (splitAt < 0) return "";
+    return decoded.slice(splitAt + 1);
+  } catch {
+    return "";
+  }
+}
+
+function vaultAuthRequired() {
+  return new Response("Vault authentication required.", {
+    status: 401,
+    headers: {
+      "www-authenticate": 'Basic realm="SCENERY Vault"',
+      "cache-control": "no-store"
+    }
+  });
+}
+
+async function verifyVaultPassword(password) {
+  if (!password) return false;
+  const now = Date.now();
+  const cachedUntil = vaultAuthCache.get(password) || 0;
+  if (cachedUntil > now) return true;
+
+  const response = await fetch(`${API_ORIGIN}/api/auth/login`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://scenery.fish"
+    },
+    body: JSON.stringify({ password })
+  });
+  if (!response.ok) return false;
+
+  vaultAuthCache.set(password, now + VAULT_AUTH_CACHE_TTL_MS);
+  return true;
+}
+
 async function proxyApi(request) {
   const url = new URL(request.url);
   const upstream = withPath(API_ORIGIN, url.pathname, url.search);
@@ -110,6 +154,12 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return proxyApi(request);
+    }
+
+    if (url.pathname === "/vault" || url.pathname.startsWith("/vault/")) {
+      const password = parseBasicPassword(request.headers.get("authorization"));
+      const ok = await verifyVaultPassword(password);
+      if (!ok) return vaultAuthRequired();
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") {
