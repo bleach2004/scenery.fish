@@ -9,134 +9,101 @@
   const body = document.body;
   if (!body) return;
 
-  const TRAIL_LIMIT = 25;
-  const PARTICLE_SPAWN_COUNT = 2;
-  const PARTICLE_LIFE = 40;
-  const layer = document.createElement("canvas");
+  const cursorUrl = "/assets/cursors/cursor.png";
+  const hotspotX = 8;
+  const hotspotY = 8;
+  const ghostSize = 34; // Slightly bigger than the visible cursor.
+  const spawnIntervalMs = 16;
+  const fadeDurationMs = 420;
+  const maxGhosts = 120;
+
+  const layer = document.createElement("div");
   layer.setAttribute("aria-hidden", "true");
   layer.style.position = "fixed";
   layer.style.inset = "0";
   layer.style.pointerEvents = "none";
-  layer.style.zIndex = "2147483646";
   layer.style.overflow = "hidden";
-
-  const ctx = layer.getContext("2d");
-  if (!ctx) {
-    window.__SCENERY_CURSOR_TRAIL__ = false;
-    return;
-  }
-
+  layer.style.zIndex = "2147483646";
   body.appendChild(layer);
 
-  let width = layer.width = window.innerWidth;
-  let height = layer.height = window.innerHeight;
-  const mouse = { x: width / 2, y: height / 2 };
-  const trail = [];
-  const particles = [];
+  const ghosts = [];
   let rafId = 0;
+  let lastSpawnAt = 0;
   let visible = false;
 
-  function show() {
-    visible = true;
+  function spawnGhost(x, y, now) {
+    const ghost = document.createElement("div");
+    ghost.style.position = "absolute";
+    ghost.style.width = `${ghostSize}px`;
+    ghost.style.height = `${ghostSize}px`;
+    ghost.style.left = `${Math.round(x - hotspotX - (ghostSize - 16) / 2)}px`;
+    ghost.style.top = `${Math.round(y - hotspotY - (ghostSize - 16) / 2)}px`;
+    ghost.style.backgroundImage = `url("${cursorUrl}")`;
+    ghost.style.backgroundSize = "contain";
+    ghost.style.backgroundRepeat = "no-repeat";
+    ghost.style.backgroundPosition = "center";
+    ghost.style.opacity = "0.5";
+    ghost.style.filter = "brightness(1.2)";
+    ghost.style.willChange = "opacity";
+    layer.appendChild(ghost);
+
+    ghosts.push({ el: ghost, bornAt: now });
+    if (ghosts.length > maxGhosts) {
+      const removed = ghosts.shift();
+      if (removed) removed.el.remove();
+    }
   }
 
-  function hide() {
-    visible = false;
-    trail.length = 0;
-    particles.length = 0;
-    ctx.clearRect(0, 0, width, height);
-  }
+  function tick(now) {
+    rafId = requestAnimationFrame(tick);
+    if (!visible && ghosts.length === 0) return;
 
-  function onEnter(event) {
-    mouse.x = event.clientX;
-    mouse.y = event.clientY;
-    show();
+    for (let i = ghosts.length - 1; i >= 0; i -= 1) {
+      const ghost = ghosts[i];
+      const age = now - ghost.bornAt;
+      const t = Math.min(1, age / fadeDurationMs);
+      ghost.el.style.opacity = String(0.5 * (1 - t));
+      if (t >= 1) {
+        ghost.el.remove();
+        ghosts.splice(i, 1);
+      }
+    }
   }
 
   function onMove(event) {
-    mouse.x = event.clientX;
-    mouse.y = event.clientY;
-    trail.push({ x: mouse.x, y: mouse.y });
-    if (trail.length > TRAIL_LIMIT) trail.shift();
-
-    for (let i = 0; i < PARTICLE_SPAWN_COUNT; i += 1) {
-      particles.push({
-        x: mouse.x,
-        y: mouse.y,
-        vx: (Math.random() - 0.5) * 2,
-        vy: (Math.random() - 0.5) * 2,
-        life: PARTICLE_LIFE
-      });
-    }
-
-    if (!visible) show();
+    visible = true;
+    const now = performance.now();
+    if (now - lastSpawnAt < spawnIntervalMs) return;
+    lastSpawnAt = now;
+    spawnGhost(event.clientX, event.clientY, now);
   }
 
-  function onResize() {
-    width = layer.width = window.innerWidth;
-    height = layer.height = window.innerHeight;
+  function onEnter(event) {
+    visible = true;
+    const now = performance.now();
+    lastSpawnAt = now;
+    spawnGhost(event.clientX, event.clientY, now);
   }
 
-  function tick() {
-    rafId = requestAnimationFrame(tick);
-    if (!visible) return;
-
-    ctx.clearRect(0, 0, width, height);
-
-    // 1) White glow line trail
-    if (trail.length > 1) {
-      ctx.beginPath();
-      for (let i = 0; i < trail.length; i += 1) {
-        const point = trail[i];
-        if (i === 0) ctx.moveTo(point.x, point.y);
-        else ctx.lineTo(point.x, point.y);
-      }
-      ctx.strokeStyle = "rgba(255,255,255,0.3)";
-      ctx.lineWidth = 2;
-      ctx.shadowBlur = 15;
-      ctx.shadowColor = "white";
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-
-    // 2) White particles
-    for (let i = particles.length - 1; i >= 0; i -= 1) {
-      const particle = particles[i];
-      particle.x += particle.vx;
-      particle.y += particle.vy;
-      particle.life -= 1;
-
-      ctx.beginPath();
-      ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(255,255,255,${particle.life / PARTICLE_LIFE})`;
-      ctx.fill();
-
-      if (particle.life <= 0) particles.splice(i, 1);
-    }
-
-    // 3) White cursor dot
-    ctx.beginPath();
-    ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = "white";
-    ctx.fill();
+  function onLeave() {
+    visible = false;
   }
 
   window.addEventListener("mousemove", onMove, { passive: true });
   window.addEventListener("mouseenter", onEnter, { passive: true });
-  window.addEventListener("mouseleave", hide, { passive: true });
-  window.addEventListener("blur", hide, { passive: true });
-  window.addEventListener("resize", onResize, { passive: true });
+  window.addEventListener("mouseleave", onLeave, { passive: true });
+  window.addEventListener("blur", onLeave, { passive: true });
 
-  tick();
+  rafId = requestAnimationFrame(tick);
 
   window.__SCENERY_CURSOR_TRAIL_DESTROY__ = () => {
     cancelAnimationFrame(rafId);
-    layer.remove();
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseenter", onEnter);
-    window.removeEventListener("mouseleave", hide);
-    window.removeEventListener("blur", hide);
-    window.removeEventListener("resize", onResize);
+    window.removeEventListener("mouseleave", onLeave);
+    window.removeEventListener("blur", onLeave);
+    for (const ghost of ghosts) ghost.el.remove();
+    layer.remove();
     window.__SCENERY_CURSOR_TRAIL__ = false;
   };
 })();
