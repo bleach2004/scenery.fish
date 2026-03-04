@@ -2077,7 +2077,7 @@
 
     function unlock() {
       isUnlocked = true;
-      gate.style.display = "none";
+      if (gate) gate.style.display = "none";
       toolbar.removeAttribute("hidden");
       sidePanel.removeAttribute("hidden");
       portfolio.removeAttribute("hidden");
@@ -2089,6 +2089,7 @@
       resetHistoryState();
       setSaveStatus("Saved");
       pushHistory();
+      setEditMode(true);
       updateDockVisibility();
     }
 
@@ -2099,47 +2100,12 @@
         currentCanvasId = workspace.activeCanvasId;
       }
       refreshCanvasSelectors();
-      portfolio.classList.add("locked");
-      portfolio.setAttribute("aria-hidden", "true");
-      passwordInput.focus();
+      unlock();
     }
 
     initializeGateState();
 
-    loginForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const input = passwordInput.value;
-      const ok = await verifyVaultPassword(input);
-      if (ok) {
-        unlock();
-        errorMsg.textContent = "";
-        passwordInput.value = "";
-        return;
-      }
-
-      // Compatibility fallback: allow edit password to unlock the editor route too.
-      const editOk = await verifyEditPassword(input);
-      if (editOk) {
-        unlock();
-        errorMsg.textContent = "";
-        passwordInput.value = "";
-        return;
-      }
-
-      errorMsg.textContent = "REQUEST/./SCENERY. (OR SERVER OFFLINE)";
-      passwordInput.select();
-    });
-
-    toggleEditBtn.addEventListener("click", async () => {
-      if (!isEditMode) {
-        const input = prompt("SCENERY ONLY");
-        if (input === null) return;
-        const ok = await verifyEditPassword(input);
-        if (!ok) {
-          alert("XD");
-          return;
-        }
-      }
+    toggleEditBtn.addEventListener("click", () => {
       setEditMode(!isEditMode);
     });
 
