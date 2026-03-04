@@ -1,4 +1,4 @@
-name = "scenery-fish-worker"
+name = "scenery-fish"
 main = "worker.js"
 compatibility_date = "2026-03-03"
 
