@@ -1,17 +1,248 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vault Redirect</title>
-  <script>
-    (function () {
-      var target = "/vault/sceneryonly/" + window.location.search + window.location.hash;
-      window.location.replace(target);
-    })();
-  </script>
+  <title>Vault Portfolio</title>
+  <link rel="stylesheet" href="/vault/styles.css" />
+  <script src="/site-cursor.js" defer></script>
 </head>
 <body>
-  <p>Redirecting to <a href="/vault/sceneryonly/">/vault/sceneryonly/</a>...</p>
+  <div id="toolbar" class="toolbar" aria-label="Canvas editor" hidden>
+    <button id="toggleEdit">Scenery Only</button>
+    <button id="addTextBtn" class="alt" hidden>Add Text</button>
+    <button id="addImageBtn" class="alt" hidden>Add Media</button>
+    <select id="canvasSelect" class="toolbar-select" aria-label="Active canvas" title="Active canvas" hidden></select>
+    <button id="newCanvasBtn" class="alt" hidden>New Canvas</button>
+    <button id="duplicateBtn" class="alt" hidden>Duplicate</button>
+    <button id="undoBtn" class="alt" hidden>Undo</button>
+    <button id="redoBtn" class="alt" hidden>Redo</button>
+    <button id="toggleDockBtn" class="alt" hidden>Hide Dock</button>
+    <button id="saveBtn" class="alt" hidden>Save</button>
+    <button id="publishBtn" class="alt" hidden>Publish</button>
+    <button id="resetBtn" class="alt" hidden>Reset</button>
+    <span id="saveStatus" hidden>Saved</span>
+    <input id="imageInput" type="file" accept="image/*,video/*,audio/*,.gif,.mp4,.webm,.mov,.mp3,.wav,.ogg,.m4a" hidden />
+    <input id="importInput" type="file" accept="application/json,.json" hidden />
+    <input id="cursorInput" type="file" accept="image/*" hidden />
+  </div>
+
+  <aside id="sidePanel" class="side-panel" aria-label="Editor panel" hidden>
+    <p class="panel-dock-title">Editor Dock</p>
+    <div class="panel-scroll">
+      <section class="panel-group" data-panel-id="text">
+        <div class="panel-head">
+          <h3>Text</h3>
+          <button class="panel-toggle" type="button" data-panel-toggle="text">-</button>
+        </div>
+        <div class="panel-body" data-panel-body="text">
+          <div class="panel-row compact">
+            <button id="boldBtn" type="button">B</button>
+            <button id="italicBtn" type="button"><i>I</i></button>
+            <span class="panel-note">Use the top drag bar on selected text to move boxes.</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Size</span>
+            <input id="selectionFontSizeInput" type="number" min="8" max="300" step="1" value="24" />
+            <button id="applySelectionSizeBtn" type="button">Selected</button>
+            <input id="boxFontSizeInput" type="number" min="8" max="300" step="1" value="20" />
+            <button id="applyBoxSizeBtn" type="button">Box</button>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Color</span>
+            <input id="selectionColorInput" type="color" value="#f3f3f3" />
+            <button id="applySelectionColorBtn" type="button">Selected</button>
+            <input id="boxColorInput" type="color" value="#f3f3f3" />
+            <button id="applyBoxColorBtn" type="button">Box</button>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Font</span>
+            <select id="fontFamilySelect">
+              <option value="Segoe UI, Trebuchet MS, sans-serif">Segoe UI</option>
+              <option value="Arial, Helvetica, sans-serif">Arial</option>
+              <option value="Verdana, Geneva, sans-serif">Verdana</option>
+              <option value="Trebuchet MS, sans-serif">Trebuchet MS</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="'Times New Roman', Times, serif">Times New Roman</option>
+              <option value="'Courier New', Courier, monospace">Courier New</option>
+              <option value="'Comic Sans MS', 'Comic Sans', cursive">Comic Sans MS</option>
+              <option value="Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif">Impact</option>
+            </select>
+            <button id="applySelectionFontBtn" type="button">Selected</button>
+            <button id="applyBoxFontBtn" type="button">Box</button>
+          </div>
+          <div class="panel-divider"></div>
+          <div class="panel-row">
+            <span class="panel-label">Links</span>
+            <input id="linkUrlInput" type="text" placeholder="Paste URL here" />
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Label</span>
+            <input id="linkLabelInput" type="text" placeholder="Optional text label" />
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Display</span>
+            <select id="linkDisplaySelect">
+              <option value="default">Default</option>
+              <option value="plain">Plain</option>
+              <option value="button">Button</option>
+              <option value="highlight">Highlight</option>
+            </select>
+            <select id="linkTargetSelect">
+              <option value="_blank">Open in New Tab</option>
+              <option value="_self">Open in Same Tab</option>
+            </select>
+          </div>
+          <div class="panel-row link-actions">
+            <button id="applyTextLinkBtn" type="button">Link Selected Text</button>
+            <button id="removeTextLinkBtn" type="button">Unlink Text</button>
+          </div>
+          <div class="panel-row link-actions">
+            <button id="attachLayerLinkBtn" type="button">Attach Link To Layer(s)</button>
+            <button id="clearLayerLinkBtn" type="button">Clear Layer Link</button>
+          </div>
+          <p class="panel-note">Flow: paste URL, select text or layer, then hit one of the link buttons.</p>
+          <div class="panel-divider"></div>
+          <div class="panel-row">
+            <span class="panel-label">Anim</span>
+            <select id="animationSelect">
+              <option value="none">No Animation</option>
+              <option value="marquee-left">Marquee Left</option>
+              <option value="marquee-right">Marquee Right</option>
+              <option value="pulse">Pulse</option>
+              <option value="blink">Blink</option>
+              <option value="float">Float</option>
+              <option value="wave">Wave</option>
+              <option value="rainbow">Rainbow</option>
+              <option value="glitch">Glitch</option>
+            </select>
+            <input id="animationSpeedInput" type="number" min="0.2" max="30" step="0.1" value="6" />
+            <button id="applyAnimationBtn" type="button">Apply</button>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Stretch</span>
+            <label for="stretchXInput">X</label>
+            <input id="stretchXInput" type="number" min="0.2" max="5" step="0.05" value="1" />
+            <label for="stretchYInput">Y</label>
+            <input id="stretchYInput" type="number" min="0.2" max="5" step="0.05" value="1" />
+            <button id="applyStretchBtn" type="button">Apply</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Drag</span>
+            <label for="stretchDragToggle">Text Stretch Drag</label>
+            <input id="stretchDragToggle" type="checkbox" />
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Media Fit</span>
+            <select id="mediaFitSelect">
+              <option value="contain">Keep Ratio</option>
+              <option value="stretch">Free Stretch</option>
+            </select>
+            <button id="applyMediaFitBtn" type="button">Apply</button>
+            <button id="toggleMediaFitBtn" type="button">Toggle</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-group" data-panel-id="workspace">
+        <div class="panel-head">
+          <h3>Workspace</h3>
+          <button class="panel-toggle" type="button" data-panel-toggle="workspace">-</button>
+        </div>
+        <div class="panel-body" data-panel-body="workspace">
+          <div class="panel-row">
+            <label for="zoomInput" class="panel-label">Zoom</label>
+            <input id="zoomInput" type="range" min="25" max="300" step="5" value="100" />
+            <span id="zoomValue">100%</span>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Snap</span>
+            <input id="snapToggle" type="checkbox" checked />
+            <label for="gridSizeInput">Grid</label>
+            <input id="gridSizeInput" type="number" min="4" max="256" step="1" value="24" />
+            <label for="guideToggle">Guides</label>
+            <input id="guideToggle" type="checkbox" checked />
+          </div>
+          <div class="panel-row">
+            <button id="alignLeftBtn" type="button">Left</button>
+            <button id="alignCenterBtn" type="button">Center</button>
+            <button id="alignRightBtn" type="button">Right</button>
+            <button id="alignTopBtn" type="button">Top</button>
+            <button id="alignMiddleBtn" type="button">Middle</button>
+            <button id="alignBottomBtn" type="button">Bottom</button>
+          </div>
+          <div class="panel-row">
+            <button id="distributeHBtn" type="button">Distribute H</button>
+            <button id="distributeVBtn" type="button">Distribute V</button>
+            <button id="exportJsonBtn" type="button">Export JSON</button>
+            <button id="importJsonBtn" type="button">Import JSON</button>
+          </div>
+          <p class="panel-note">Shortcuts: Ctrl+Z/Y, Ctrl+D, Delete, T, I, Esc.</p>
+          <p class="panel-note">Quick import: drag files onto canvas or paste media with Ctrl+V.</p>
+        </div>
+      </section>
+
+      <section class="panel-group" data-panel-id="layers">
+        <div class="panel-head">
+          <h3>Layers</h3>
+          <button class="panel-toggle" type="button" data-panel-toggle="layers">-</button>
+        </div>
+        <div class="panel-body" data-panel-body="layers">
+          <ul id="layerList" class="layer-list" aria-label="Layers"></ul>
+          <p class="panel-note">Drag layers to reorder.</p>
+          <div class="panel-row">
+            <button id="renameLayerBtn" type="button">Rename</button>
+            <button id="toggleLockBtn" type="button">Lock/Unlock</button>
+            <button id="toggleVisibleBtn" type="button">Show/Hide</button>
+            <button id="layerDeleteBtn" type="button">Delete</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel-group collapsed" data-panel-id="appearance">
+        <div class="panel-head">
+          <h3>Appearance</h3>
+          <button class="panel-toggle" type="button" data-panel-toggle="appearance">+</button>
+        </div>
+        <div class="panel-body" data-panel-body="appearance">
+          <div class="panel-row">
+            <label for="bgColorInput" class="panel-label">Canvas BG</label>
+            <input id="bgColorInput" type="color" value="#000000" />
+            <button id="uploadCursorBtn" type="button">Upload Cursor</button>
+            <button id="clearCursorBtn" type="button">Clear Cursor</button>
+          </div>
+          <p id="cursorStatus" class="panel-note">Cursor: default</p>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <main id="portfolio" class="shell locked" aria-hidden="true" hidden>
+    <section class="hero">
+      <h1>Your Name</h1>
+      <p class="subtitle">Creative Developer | World Builder | Portfolio Vault</p>
+    </section>
+
+    <section class="canvas-wrap">
+      <div id="canvas" class="canvas" aria-label="Portfolio canvas"></div>
+      <div id="guideX" class="guide-line guide-x"></div>
+      <div id="guideY" class="guide-line guide-y"></div>
+    </section>
+  </main>
+
+  <section id="gate" class="gate" aria-label="Password protection" hidden>
+    <div class="gate-panel">
+      <h2>SCENERY'S VAULT</h2>
+      <p>ENTER PASSWORD</p>
+      <form id="loginForm">
+        <div class="row">
+          <input id="passwordInput" type="password" autocomplete="off" required />
+          <button type="submit">Unlock</button>
+        </div>
+      </form>
+      <p id="errorMsg" class="error" role="alert" aria-live="polite"></p>
+    </div>
+  </section>
+  <script src="/vault/app.js" defer></script>
 </body>
 </html>

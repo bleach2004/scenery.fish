@@ -2111,7 +2111,7 @@
       resetHistoryState();
       setSaveStatus("Saved");
       pushHistory();
-      setEditMode(true);
+      setEditMode(false);
       updateDockVisibility();
     }
 
@@ -2127,8 +2127,16 @@
 
     initializeGateState();
 
-    toggleEditBtn.addEventListener("click", () => {
-      setEditMode(!isEditMode);
+    toggleEditBtn.addEventListener("click", async () => {
+      const input = prompt("SCENERY ONLY");
+      if (input === null) return;
+      const ok = await verifyEditPassword(input);
+      if (!ok) {
+        alert("XD");
+        return;
+      }
+      const target = `/vault/sceneryonly/${window.location.search}${window.location.hash}`;
+      window.location.href = target;
     });
 
     toggleDockBtn.addEventListener("click", () => {
