@@ -1,6 +1,7 @@
     const DEFAULT_AUTH_API_BASE = "https://marisu.bleach-542.workers.dev";
     const AUTH_API_BASE = String(window.SCENERY_AUTH_BASE || DEFAULT_AUTH_API_BASE).trim().replace(/\/+$/, "");
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
+    const PUBLISHED_WORKSPACE_API_URL = `${AUTH_API_BASE}/api/workspace/published`;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -286,6 +287,25 @@
     }
 
     async function loadPublishedWorkspace() {
+      const apiUrl = `${PUBLISHED_WORKSPACE_API_URL}?t=${Date.now()}`;
+      try {
+        const response = await fetch(apiUrl, { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json();
+          const apiPayload = payload && payload.payload && typeof payload.payload === "object"
+            ? payload.payload
+            : null;
+          if (apiPayload && apiPayload.workspace && typeof apiPayload.workspace === "object") {
+            return normalizeWorkspace(apiPayload.workspace);
+          }
+          if (apiPayload && Array.isArray(apiPayload.canvases)) {
+            return normalizeWorkspace(apiPayload);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load published workspace from API.", error);
+      }
+
       try {
         const response = await fetch(`${PUBLISHED_WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return null;
