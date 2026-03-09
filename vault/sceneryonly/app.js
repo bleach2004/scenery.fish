@@ -2,7 +2,7 @@
     const API_BASE = AUTH_API_BASE || "";
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
     const PUBLISHED_WORKSPACE_API_URL = `${API_BASE}/api/workspace/published`;
-    const PUBLISH_MAX_BYTES = 6 * 1024 * 1024;
+    const PUBLISH_MAX_BYTES = 32 * 1024 * 1024;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
