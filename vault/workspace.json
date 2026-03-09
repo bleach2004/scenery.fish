@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "publishedAt": "2026-03-09T22:01:28.167Z",
+  "publishedAt": "2026-03-09T22:30:41.528Z",
   "workspace": {
     "canvases": [
       {
@@ -68,14 +68,15 @@
             "rotateDeg": 0
           },
           {
-            "id": "82ec92dc-fa60-4763-954f-7575d235564d",
+            "id": "a5d1c562-4d45-412f-95a9-cf538f6e8c37",
             "type": "text",
-            "name": "Text 4",
-            "x": 216,
-            "y": 473,
-            "w": 494,
-            "h": 172,
-            "fontSize": 20,
+            "blogMode": true,
+            "name": "Blog 4",
+            "x": 73,
+            "y": 489,
+            "w": 620,
+            "h": 420,
+            "fontSize": 18,
             "color": "#f3f3f3",
             "fontFamily": "Segoe UI, Trebuchet MS, sans-serif",
             "animation": "none",
@@ -87,9 +88,8 @@
             "linkDisplay": "default",
             "hidden": false,
             "locked": false,
-            "text": "New text",
-            "rotateDeg": 0,
-            "blogMode": false
+            "text": "<h1>SOCIAL // CONTACT</h1><p><br></p><p>SPOTIFY //</p>",
+            "rotateDeg": 0
           }
         ],
         "settings": {
