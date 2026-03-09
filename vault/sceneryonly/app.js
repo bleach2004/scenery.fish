@@ -2001,6 +2001,11 @@
           syncSelectionClasses();
           renderLayerList();
           updatePanelState();
+          const cornerDir = getCornerResizeDirection(event, node);
+          if (!item.locked && cornerDir) {
+            startTransform(event, item, node, "resize", cornerDir);
+            return;
+          }
           if (!item.locked && isPointerNearRotateCorner(event, node)) {
             startTransform(event, item, node, "rotate");
             return;
@@ -2015,6 +2020,30 @@
       ensureCanvasHeight();
     }
 
+    function getCornerResizeDirection(event, node) {
+      const rect = node.getBoundingClientRect();
+      const corners = [
+        [rect.left, rect.top, "nw"],
+        [rect.right, rect.top, "ne"],
+        [rect.right, rect.bottom, "se"],
+        [rect.left, rect.bottom, "sw"]
+      ];
+      const threshold = 16;
+      const thresholdSq = threshold * threshold;
+      let bestDir = "";
+      let bestDistanceSq = Number.POSITIVE_INFINITY;
+      for (const [x, y, dir] of corners) {
+        const dx = event.clientX - x;
+        const dy = event.clientY - y;
+        const distanceSq = (dx * dx) + (dy * dy);
+        if (distanceSq <= thresholdSq && distanceSq < bestDistanceSq) {
+          bestDistanceSq = distanceSq;
+          bestDir = dir;
+        }
+      }
+      return bestDir;
+    }
+
     function isPointerNearRotateCorner(event, node) {
       const rect = node.getBoundingClientRect();
       const corners = [
@@ -2023,12 +2052,15 @@
         [rect.right, rect.bottom],
         [rect.left, rect.bottom]
       ];
-      const threshold = 18;
-      const thresholdSq = threshold * threshold;
+      const inner = 16;
+      const outer = 34;
+      const innerSq = inner * inner;
+      const outerSq = outer * outer;
       for (const [x, y] of corners) {
         const dx = event.clientX - x;
         const dy = event.clientY - y;
-        if ((dx * dx) + (dy * dy) <= thresholdSq) return true;
+        const distanceSq = (dx * dx) + (dy * dy);
+        if (distanceSq > innerSq && distanceSq <= outerSq) return true;
       }
       return false;
     }

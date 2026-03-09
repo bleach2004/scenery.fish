@@ -344,8 +344,8 @@
 
     .transform-handle {
       position: absolute;
-      width: 10px;
-      height: 10px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
       border: 1px solid #000;
       background: rgba(255, 255, 255, 0.95);
@@ -357,14 +357,14 @@
       display: block;
     }
 
-    .transform-handle.nw { top: -6px; left: -6px; cursor: nwse-resize; }
-    .transform-handle.n { top: -6px; left: calc(50% - 5px); cursor: ns-resize; }
-    .transform-handle.ne { top: -6px; right: -6px; cursor: nesw-resize; }
-    .transform-handle.e { top: calc(50% - 5px); right: -6px; cursor: ew-resize; }
-    .transform-handle.se { bottom: -6px; right: -6px; cursor: nwse-resize; }
-    .transform-handle.s { bottom: -6px; left: calc(50% - 5px); cursor: ns-resize; }
-    .transform-handle.sw { bottom: -6px; left: -6px; cursor: nesw-resize; }
-    .transform-handle.w { top: calc(50% - 5px); left: -6px; cursor: ew-resize; }
+    .transform-handle.nw { top: -8px; left: -8px; cursor: nwse-resize; }
+    .transform-handle.n { top: -8px; left: calc(50% - 7px); cursor: ns-resize; }
+    .transform-handle.ne { top: -8px; right: -8px; cursor: nesw-resize; }
+    .transform-handle.e { top: calc(50% - 7px); right: -8px; cursor: ew-resize; }
+    .transform-handle.se { bottom: -8px; right: -8px; cursor: nwse-resize; }
+    .transform-handle.s { bottom: -8px; left: calc(50% - 7px); cursor: ns-resize; }
+    .transform-handle.sw { bottom: -8px; left: -8px; cursor: nesw-resize; }
+    .transform-handle.w { top: calc(50% - 7px); left: -8px; cursor: ew-resize; }
 
     .toolbar {
       position: fixed;
