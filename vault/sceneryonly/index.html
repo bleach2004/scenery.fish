@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -14,11 +14,17 @@
     <button id="addTextBtn" class="alt" hidden>Add Text</button>
     <button id="addBlogBtn" class="alt" hidden>Add Blog Window</button>
     <button id="addImageBtn" class="alt" hidden>Add Media</button>
+    <button id="prevCanvasBtn" class="alt" hidden aria-label="Previous canvas">&lt;</button>
     <select id="canvasSelect" class="toolbar-select" aria-label="Active canvas" title="Active canvas" hidden></select>
+    <button id="nextCanvasBtn" class="alt" hidden aria-label="Next canvas">&gt;</button>
     <button id="newCanvasBtn" class="alt" hidden>New Canvas</button>
+    <select id="publicCanvasSelect" class="toolbar-select" aria-label="Public canvas" title="Public canvas" hidden></select>
     <button id="duplicateBtn" class="alt" hidden>Duplicate</button>
     <button id="undoBtn" class="alt" hidden>Undo</button>
     <button id="redoBtn" class="alt" hidden>Redo</button>
+    <button id="quickClumpBtn" class="alt" hidden>Clump</button>
+    <button id="quickRandomizeBtn" class="alt" hidden>Randomize</button>
+    <button id="quickInspireBtn" class="alt" hidden>Inspire</button>
     <button id="toggleDockBtn" class="alt" hidden>Hide Dock</button>
     <button id="saveBtn" class="alt" hidden>Save</button>
     <button id="publishBtn" class="alt" hidden>Publish</button>
@@ -178,6 +184,139 @@
         </div>
       </section>
 
+      <section class="panel-group" data-panel-id="creative">
+        <div class="panel-head">
+          <h3>Creative Lab</h3>
+          <button class="panel-toggle" type="button" data-panel-toggle="creative">-</button>
+        </div>
+        <div class="panel-body" data-panel-body="creative">
+          <div class="panel-row">
+            <span class="panel-label">Layout</span>
+            <select id="smartLayoutSelect">
+              <option value="grid">Grid</option>
+              <option value="columns">Columns</option>
+              <option value="hero-strip">Hero + Strip</option>
+              <option value="mosaic">Mosaic</option>
+            </select>
+            <label for="layoutGapInput">Gap</label>
+            <input id="layoutGapInput" type="number" min="0" max="240" step="1" value="26" />
+            <button id="applySmartLayoutBtn" type="button">Apply</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Columns</span>
+            <input id="slideColumnsInput" type="number" min="1" max="12" step="1" value="3" />
+            <button id="applySlideColumnsBtn" type="button">Flow</button>
+            <button id="balanceColumnsBtn" type="button">Balance</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Clump</span>
+            <label for="clumpStrengthInput">Force</label>
+            <input id="clumpStrengthInput" type="number" min="0" max="200" step="1" value="36" />
+            <label for="clumpSpreadInput">Spread</label>
+            <input id="clumpSpreadInput" type="number" min="0" max="800" step="1" value="220" />
+            <button id="clumpBtn" type="button">Clump</button>
+            <button id="explodeBtn" type="button">Explode</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Shuffle</span>
+            <button id="randomizeLayoutBtn" type="button">Randomize</button>
+            <button id="inspireLayoutBtn" type="button">Inspire Me</button>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Hover FX</span>
+            <select id="hoverFxSelect">
+              <option value="none">None</option>
+              <option value="zoom">Zoom</option>
+              <option value="tilt">Tilt</option>
+              <option value="lift">Lift</option>
+              <option value="gray-pop">Gray Pop</option>
+              <option value="blur-pop">Blur Pop</option>
+            </select>
+            <button id="applyHoverFxBtn" type="button">Apply</button>
+            <button id="clearHoverFxBtn" type="button">Clear</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Hover Img</span>
+            <input id="hoverSwapInput" type="file" accept="image/*" />
+            <button id="applyHoverSwapBtn" type="button">Attach</button>
+            <button id="clearHoverSwapBtn" type="button">Clear</button>
+          </div>
+          <div class="panel-row">
+            <span class="panel-label">Blend</span>
+            <select id="blendModeSelect">
+              <option value="normal">Normal</option>
+              <option value="multiply">Multiply</option>
+              <option value="screen">Screen</option>
+              <option value="overlay">Overlay</option>
+              <option value="soft-light">Soft Light</option>
+              <option value="hard-light">Hard Light</option>
+              <option value="difference">Difference</option>
+              <option value="exclusion">Exclusion</option>
+              <option value="color-dodge">Color Dodge</option>
+              <option value="luminosity">Luminosity</option>
+            </select>
+            <button id="applyBlendModeBtn" type="button">Apply</button>
+            <button id="clearBlendModeBtn" type="button">Clear</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Depth</span>
+            <label for="depthInput">Z</label>
+            <input id="depthInput" type="number" min="-60" max="120" step="1" value="0" />
+            <label for="shadowSoftnessInput">Soft</label>
+            <input id="shadowSoftnessInput" type="number" min="0" max="80" step="1" value="18" />
+            <button id="applyDepthBtn" type="button">Apply</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Reveal</span>
+            <select id="scrollRevealSelect">
+              <option value="none">None</option>
+              <option value="fade-up">Fade Up</option>
+              <option value="fade-in">Fade In</option>
+              <option value="zoom-in">Zoom In</option>
+              <option value="slide-left">Slide Left</option>
+              <option value="slide-right">Slide Right</option>
+            </select>
+            <button id="applyScrollRevealBtn" type="button">Apply</button>
+            <button id="clearScrollRevealBtn" type="button">Clear</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Marquee</span>
+            <select id="marqueeAxisSelect">
+              <option value="x">Horizontal</option>
+              <option value="y">Vertical</option>
+            </select>
+            <label for="marqueeGapInput">Gap</label>
+            <input id="marqueeGapInput" type="number" min="0" max="420" step="1" value="40" />
+            <button id="applyMarqueeStripBtn" type="button">Build Strip</button>
+            <button id="clearMarqueeStripBtn" type="button">Clear</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Canvas FX</span>
+            <select id="sceneTransitionSelect">
+              <option value="none">None</option>
+              <option value="fade">Fade</option>
+              <option value="slide-left">Slide Left</option>
+              <option value="slide-right">Slide Right</option>
+              <option value="zoom">Zoom</option>
+            </select>
+            <input id="sceneTransitionSpeedInput" type="number" min="0.1" max="4" step="0.1" value="0.5" />
+            <button id="applySceneTransitionBtn" type="button">Set</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Preset</span>
+            <input id="stylePresetNameInput" type="text" placeholder="Preset name" />
+            <button id="saveStylePresetBtn" type="button">Save</button>
+          </div>
+          <div class="panel-row compact">
+            <span class="panel-label">Preset</span>
+            <select id="stylePresetSelect"></select>
+            <button id="applyStylePresetBtn" type="button">Apply</button>
+            <button id="deleteStylePresetBtn" type="button">Delete</button>
+          </div>
+          <p class="panel-note">Creative tools work best on multi-select. Use Ctrl/Cmd click on layers or canvas.</p>
+        </div>
+      </section>
+
       <section class="panel-group" data-panel-id="workspace">
         <div class="panel-head">
           <h3>Workspace</h3>
@@ -280,3 +419,4 @@
   <script src="/vault/sceneryonly/app.js" defer></script>
 </body>
 </html>
+

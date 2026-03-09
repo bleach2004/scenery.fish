@@ -17,7 +17,10 @@
       zoom: 1,
       cursorData: "",
       textStretchDrag: false,
-      dockVisible: true
+      dockVisible: true,
+      sceneTransition: "none",
+      sceneTransitionSpeed: 0.5,
+      stylePresets: []
     };
 
     const gate = document.getElementById("gate");
@@ -96,8 +99,13 @@
     const gridSizeInput = document.getElementById("gridSizeInput");
     const guideToggle = document.getElementById("guideToggle");
     const canvasSelect = document.getElementById("canvasSelect");
+    const prevCanvasBtn = document.getElementById("prevCanvasBtn");
+    const nextCanvasBtn = document.getElementById("nextCanvasBtn");
     const newCanvasBtn = document.getElementById("newCanvasBtn");
     const publicCanvasSelect = document.getElementById("publicCanvasSelect");
+    const quickClumpBtn = document.getElementById("quickClumpBtn");
+    const quickRandomizeBtn = document.getElementById("quickRandomizeBtn");
+    const quickInspireBtn = document.getElementById("quickInspireBtn");
     const alignLeftBtn = document.getElementById("alignLeftBtn");
     const alignCenterBtn = document.getElementById("alignCenterBtn");
     const alignRightBtn = document.getElementById("alignRightBtn");
@@ -117,6 +125,45 @@
     const uploadCursorBtn = document.getElementById("uploadCursorBtn");
     const clearCursorBtn = document.getElementById("clearCursorBtn");
     const cursorStatus = document.getElementById("cursorStatus");
+    const smartLayoutSelect = document.getElementById("smartLayoutSelect");
+    const layoutGapInput = document.getElementById("layoutGapInput");
+    const applySmartLayoutBtn = document.getElementById("applySmartLayoutBtn");
+    const slideColumnsInput = document.getElementById("slideColumnsInput");
+    const applySlideColumnsBtn = document.getElementById("applySlideColumnsBtn");
+    const balanceColumnsBtn = document.getElementById("balanceColumnsBtn");
+    const clumpStrengthInput = document.getElementById("clumpStrengthInput");
+    const clumpSpreadInput = document.getElementById("clumpSpreadInput");
+    const clumpBtn = document.getElementById("clumpBtn");
+    const explodeBtn = document.getElementById("explodeBtn");
+    const randomizeLayoutBtn = document.getElementById("randomizeLayoutBtn");
+    const inspireLayoutBtn = document.getElementById("inspireLayoutBtn");
+    const hoverFxSelect = document.getElementById("hoverFxSelect");
+    const applyHoverFxBtn = document.getElementById("applyHoverFxBtn");
+    const clearHoverFxBtn = document.getElementById("clearHoverFxBtn");
+    const hoverSwapInput = document.getElementById("hoverSwapInput");
+    const applyHoverSwapBtn = document.getElementById("applyHoverSwapBtn");
+    const clearHoverSwapBtn = document.getElementById("clearHoverSwapBtn");
+    const blendModeSelect = document.getElementById("blendModeSelect");
+    const applyBlendModeBtn = document.getElementById("applyBlendModeBtn");
+    const clearBlendModeBtn = document.getElementById("clearBlendModeBtn");
+    const depthInput = document.getElementById("depthInput");
+    const shadowSoftnessInput = document.getElementById("shadowSoftnessInput");
+    const applyDepthBtn = document.getElementById("applyDepthBtn");
+    const scrollRevealSelect = document.getElementById("scrollRevealSelect");
+    const applyScrollRevealBtn = document.getElementById("applyScrollRevealBtn");
+    const clearScrollRevealBtn = document.getElementById("clearScrollRevealBtn");
+    const marqueeAxisSelect = document.getElementById("marqueeAxisSelect");
+    const marqueeGapInput = document.getElementById("marqueeGapInput");
+    const applyMarqueeStripBtn = document.getElementById("applyMarqueeStripBtn");
+    const clearMarqueeStripBtn = document.getElementById("clearMarqueeStripBtn");
+    const sceneTransitionSelect = document.getElementById("sceneTransitionSelect");
+    const sceneTransitionSpeedInput = document.getElementById("sceneTransitionSpeedInput");
+    const applySceneTransitionBtn = document.getElementById("applySceneTransitionBtn");
+    const stylePresetNameInput = document.getElementById("stylePresetNameInput");
+    const saveStylePresetBtn = document.getElementById("saveStylePresetBtn");
+    const stylePresetSelect = document.getElementById("stylePresetSelect");
+    const applyStylePresetBtn = document.getElementById("applyStylePresetBtn");
+    const deleteStylePresetBtn = document.getElementById("deleteStylePresetBtn");
 
     let isUnlocked = false;
     let isEditMode = false;
@@ -134,6 +181,7 @@
     let isRestoringHistory = false;
     let isPublishingGithub = false;
     let lastVerifiedEditPassword = "";
+    let revealObserver = null;
 
     function apiUrl(path) {
       if (!path.startsWith("/")) return path;
@@ -263,7 +311,12 @@
         zoom: clamp(Number(next.zoom) || 1, 0.25, 3),
         cursorData: typeof next.cursorData === "string" ? next.cursorData : "",
         textStretchDrag: Boolean(next.textStretchDrag),
-        dockVisible: typeof next.dockVisible === "boolean" ? next.dockVisible : true
+        dockVisible: typeof next.dockVisible === "boolean" ? next.dockVisible : true,
+        sceneTransition: ["none", "fade", "slide-left", "slide-right", "zoom"].includes(next.sceneTransition)
+          ? next.sceneTransition
+          : "none",
+        sceneTransitionSpeed: clamp(Number(next.sceneTransitionSpeed) || 0.5, 0.1, 4),
+        stylePresets: Array.isArray(next.stylePresets) ? next.stylePresets.slice(0, 80) : []
       };
     }
 
@@ -292,7 +345,12 @@
           zoom: typeof parsed.zoom === "number" ? parsed.zoom : fallback.zoom,
           cursorData: typeof parsed.cursorData === "string" ? parsed.cursorData : fallback.cursorData,
           textStretchDrag: typeof parsed.textStretchDrag === "boolean" ? parsed.textStretchDrag : fallback.textStretchDrag,
-          dockVisible: typeof parsed.dockVisible === "boolean" ? parsed.dockVisible : fallback.dockVisible
+          dockVisible: typeof parsed.dockVisible === "boolean" ? parsed.dockVisible : fallback.dockVisible,
+          sceneTransition: typeof parsed.sceneTransition === "string" ? parsed.sceneTransition : fallback.sceneTransition,
+          sceneTransitionSpeed: typeof parsed.sceneTransitionSpeed === "number"
+            ? parsed.sceneTransitionSpeed
+            : fallback.sceneTransitionSpeed,
+          stylePresets: Array.isArray(parsed.stylePresets) ? parsed.stylePresets : fallback.stylePresets
         });
       } catch {
         return getDefaultSettings();
@@ -628,6 +686,9 @@
       gridSizeInput.value = String(settings.gridSize);
       guideToggle.checked = settings.showGuides;
       stretchDragToggle.checked = settings.textStretchDrag;
+      if (sceneTransitionSelect) sceneTransitionSelect.value = settings.sceneTransition || "none";
+      if (sceneTransitionSpeedInput) sceneTransitionSpeedInput.value = String(settings.sceneTransitionSpeed || 0.5);
+      canvasWrap.style.setProperty("--scene-speed", `${settings.sceneTransitionSpeed || 0.5}s`);
       if (settings.snapEnabled && isEditMode) {
         const g = settings.gridSize;
         canvasWrap.style.backgroundImage =
@@ -646,6 +707,7 @@
         document.body.style.cursor = siteCursor;
         cursorStatus.textContent = "Cursor: site default";
       }
+      refreshStylePresetSelect();
       updateDockVisibility();
     }
 
@@ -668,6 +730,16 @@
         if (!next.animation) next.animation = "none";
         if (!next.animationSpeed) next.animationSpeed = 6;
         if (!Number.isFinite(next.rotateDeg)) next.rotateDeg = 0;
+        if (!["none", "zoom", "tilt", "lift", "gray-pop", "blur-pop"].includes(next.hoverFx)) next.hoverFx = "none";
+        if (typeof next.hoverSwapSrc !== "string") next.hoverSwapSrc = "";
+        if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
+        if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
+        if (!Number.isFinite(next.shadowSoftness)) next.shadowSoftness = 18;
+        if (!["none", "fade-up", "fade-in", "zoom-in", "slide-left", "slide-right"].includes(next.scrollReveal)) {
+          next.scrollReveal = "none";
+        }
+        if (!["x", "y"].includes(next.marqueeAxis)) next.marqueeAxis = "x";
+        if (!Number.isFinite(next.marqueeGap)) next.marqueeGap = 40;
         if (next.type === "text") {
           if (!next.fontSize) next.fontSize = 20;
           if (!next.color) next.color = "#f3f3f3";
@@ -1376,6 +1448,418 @@
       renderCanvas();
     }
 
+    function getCreativeSelection() {
+      return getSelectedItems({ movableOnly: true }).filter((item) => item && !item.hidden && !item.locked);
+    }
+
+    function randomBetween(min, max) {
+      return min + (Math.random() * (max - min));
+    }
+
+    function styleSnapshotFromItem(item) {
+      return {
+        fontSize: item.fontSize,
+        color: item.color,
+        fontFamily: item.fontFamily,
+        textScaleX: item.textScaleX,
+        textScaleY: item.textScaleY,
+        animation: item.animation,
+        animationSpeed: item.animationSpeed,
+        mediaAnimations: Array.isArray(item.mediaAnimations) ? [...item.mediaAnimations] : [],
+        fitMode: item.fitMode,
+        hoverFx: item.hoverFx,
+        blendMode: item.blendMode,
+        depthZ: item.depthZ,
+        shadowSoftness: item.shadowSoftness,
+        scrollReveal: item.scrollReveal
+      };
+    }
+
+    function applyStyleSnapshotToItem(item, snapshot) {
+      if (!item || !snapshot) return;
+      if (item.type === "text") {
+        if (Number.isFinite(snapshot.fontSize)) item.fontSize = snapshot.fontSize;
+        if (typeof snapshot.color === "string") item.color = snapshot.color;
+        if (typeof snapshot.fontFamily === "string") item.fontFamily = snapshot.fontFamily;
+        if (Number.isFinite(snapshot.textScaleX)) item.textScaleX = snapshot.textScaleX;
+        if (Number.isFinite(snapshot.textScaleY)) item.textScaleY = snapshot.textScaleY;
+      }
+      if (item.type === "image" || item.type === "video" || item.type === "audio") {
+        if (typeof snapshot.fitMode === "string") item.fitMode = snapshot.fitMode === "stretch" ? "stretch" : "contain";
+        if (Array.isArray(snapshot.mediaAnimations)) item.mediaAnimations = [...snapshot.mediaAnimations];
+      }
+      if (typeof snapshot.animation === "string") item.animation = snapshot.animation;
+      if (Number.isFinite(snapshot.animationSpeed)) item.animationSpeed = clamp(snapshot.animationSpeed, 0.2, 30);
+      if (typeof snapshot.hoverFx === "string") item.hoverFx = snapshot.hoverFx;
+      if (typeof snapshot.blendMode === "string") item.blendMode = snapshot.blendMode;
+      if (Number.isFinite(snapshot.depthZ)) item.depthZ = snapshot.depthZ;
+      if (Number.isFinite(snapshot.shadowSoftness)) item.shadowSoftness = snapshot.shadowSoftness;
+      if (typeof snapshot.scrollReveal === "string") item.scrollReveal = snapshot.scrollReveal;
+    }
+
+    function refreshStylePresetSelect() {
+      if (!stylePresetSelect) return;
+      const activeValue = stylePresetSelect.value;
+      stylePresetSelect.innerHTML = "";
+      const list = Array.isArray(settings.stylePresets) ? settings.stylePresets : [];
+      if (!list.length) {
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "No presets";
+        stylePresetSelect.appendChild(empty);
+        stylePresetSelect.value = "";
+        return;
+      }
+      for (const preset of list) {
+        const option = document.createElement("option");
+        option.value = preset.id || "";
+        option.textContent = preset.name || "Preset";
+        stylePresetSelect.appendChild(option);
+      }
+      const hasActive = list.some((preset) => preset.id === activeValue);
+      stylePresetSelect.value = hasActive ? activeValue : (list[0].id || "");
+    }
+
+    function applySmartLayoutToSelection(layout, gap) {
+      const selected = getCreativeSelection();
+      if (selected.length < 2) return;
+      const bounds = getBounds(selected);
+      if (!bounds) return;
+      const safeGap = clamp(Number(gap) || 0, 0, 240);
+      const ordered = [...selected].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+
+      if (layout === "columns") {
+        const columns = clamp(Number(slideColumnsInput && slideColumnsInput.value) || 3, 1, 12);
+        arrangeSelectionInColumns(ordered, columns, safeGap, false);
+        persistAll(true);
+        renderCanvas();
+        return;
+      }
+
+      if (layout === "hero-strip" && ordered.length >= 2) {
+        const hero = getActiveItem() && ordered.includes(getActiveItem()) ? getActiveItem() : ordered[0];
+        const others = ordered.filter((item) => item.id !== hero.id);
+        const heroW = Math.max(240, Math.round(bounds.width * 0.62));
+        const heroH = Math.max(180, Math.round(bounds.height * 0.62));
+        hero.x = Math.round(bounds.left);
+        hero.y = Math.round(bounds.top);
+        hero.w = heroW;
+        hero.h = heroH;
+        let cursorX = bounds.left;
+        const stripY = hero.y + hero.h + safeGap;
+        for (const item of others) {
+          item.x = Math.round(cursorX);
+          item.y = Math.round(stripY);
+          cursorX += item.w + safeGap;
+        }
+        persistAll(true);
+        renderCanvas();
+        return;
+      }
+
+      if (layout === "mosaic") {
+        const columns = Math.max(2, Math.round(Math.sqrt(ordered.length)));
+        const cellW = Math.max(60, Math.round((bounds.width - (safeGap * (columns - 1))) / columns));
+        const cellH = Math.max(60, Math.round((bounds.height - (safeGap * (columns - 1))) / columns));
+        for (let i = 0; i < ordered.length; i += 1) {
+          const item = ordered[i];
+          const col = i % columns;
+          const row = Math.floor(i / columns);
+          item.x = Math.round(bounds.left + (col * (cellW + safeGap)));
+          item.y = Math.round(bounds.top + (row * (cellH + safeGap)));
+          if (item.type !== "audio") {
+            item.w = Math.max(36, Math.round(cellW * randomBetween(0.86, 1.15)));
+            item.h = Math.max(36, Math.round(cellH * randomBetween(0.86, 1.15)));
+          }
+        }
+        persistAll(true);
+        renderCanvas();
+        return;
+      }
+
+      const columns = Math.max(1, Math.ceil(Math.sqrt(ordered.length)));
+      const cellW = Math.max(...ordered.map((item) => item.w));
+      const cellH = Math.max(...ordered.map((item) => item.h));
+      for (let i = 0; i < ordered.length; i += 1) {
+        const item = ordered[i];
+        const row = Math.floor(i / columns);
+        const col = i % columns;
+        item.x = Math.round(bounds.left + (col * (cellW + safeGap)));
+        item.y = Math.round(bounds.top + (row * (cellH + safeGap)));
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function arrangeSelectionInColumns(selected, columnCount, gap, balanced) {
+      if (!selected.length) return;
+      const columns = clamp(Number(columnCount) || 1, 1, 12);
+      const safeGap = clamp(Number(gap) || 0, 0, 240);
+      const bounds = getBounds(selected);
+      if (!bounds) return;
+      const columnHeights = new Array(columns).fill(0);
+      const columnX = new Array(columns).fill(0).map((_, index) => bounds.left + (index * (Math.max(100, Math.round(bounds.width / columns)) + safeGap)));
+      const ordered = balanced
+        ? [...selected].sort((a, b) => b.h - a.h)
+        : [...selected].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+      for (let i = 0; i < ordered.length; i += 1) {
+        const item = ordered[i];
+        const targetColumn = balanced
+          ? columnHeights.indexOf(Math.min(...columnHeights))
+          : (i % columns);
+        item.x = Math.round(columnX[targetColumn]);
+        item.y = Math.round(bounds.top + columnHeights[targetColumn]);
+        columnHeights[targetColumn] += item.h + safeGap;
+      }
+    }
+
+    function applyClumpToSelection(explode = false) {
+      const selected = getCreativeSelection();
+      if (selected.length < 2) return;
+      const bounds = getBounds(selected);
+      if (!bounds) return;
+      const force = clamp(Number(clumpStrengthInput && clumpStrengthInput.value) || 36, 0, 200);
+      const spread = clamp(Number(clumpSpreadInput && clumpSpreadInput.value) || 220, 0, 800);
+      const centerX = bounds.left + (bounds.width / 2);
+      const centerY = bounds.top + (bounds.height / 2);
+      const direction = explode ? 1 : -1;
+      for (const item of selected) {
+        const angle = randomBetween(0, Math.PI * 2);
+        const distance = randomBetween(force * 0.5, Math.max(force, spread * 0.5));
+        const targetX = centerX + (Math.cos(angle) * distance * direction);
+        const targetY = centerY + (Math.sin(angle) * distance * direction);
+        item.x = Math.max(0, Math.round(targetX - (item.w / 2)));
+        item.y = Math.max(0, Math.round(targetY - (item.h / 2)));
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function randomizeSelectionLayout() {
+      const selected = getCreativeSelection();
+      if (!selected.length) return;
+      const bounds = getBounds(selected);
+      if (!bounds) return;
+      const jitter = Math.max(24, Math.round((bounds.width + bounds.height) / 10));
+      for (const item of selected) {
+        item.x = Math.max(0, Math.round(item.x + randomBetween(-jitter, jitter)));
+        item.y = Math.max(0, Math.round(item.y + randomBetween(-jitter, jitter)));
+        if (item.type !== "audio") {
+          item.rotateDeg = Math.round(clamp((Number(item.rotateDeg) || 0) + randomBetween(-14, 14), -180, 180));
+        }
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function inspireSelection() {
+      const selected = getCreativeSelection();
+      if (!selected.length) return;
+      const layouts = ["grid", "columns", "mosaic", "hero-strip"];
+      applySmartLayoutToSelection(layouts[Math.floor(Math.random() * layouts.length)], Number(layoutGapInput && layoutGapInput.value) || 26);
+      const hoverModes = ["none", "zoom", "tilt", "lift", "gray-pop", "blur-pop"];
+      const blendModes = ["normal", "multiply", "screen", "overlay", "soft-light", "difference"];
+      for (const item of selected) {
+        item.hoverFx = hoverModes[Math.floor(Math.random() * hoverModes.length)];
+        item.blendMode = blendModes[Math.floor(Math.random() * blendModes.length)];
+        item.depthZ = Math.round(randomBetween(-10, 36));
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyHoverFxToSelection(mode) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && (item.type === "image" || item.type === "video"));
+      if (!selected.length) return;
+      for (const item of selected) item.hoverFx = mode;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyHoverSwapToSelection(dataUrl) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && item.type === "image");
+      if (!selected.length) return;
+      for (const item of selected) item.hoverSwapSrc = dataUrl;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function clearHoverSwapFromSelection() {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && item.type === "image");
+      if (!selected.length) return;
+      for (const item of selected) item.hoverSwapSrc = "";
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyBlendModeToSelection(mode) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
+      if (!selected.length) return;
+      for (const item of selected) item.blendMode = mode;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyDepthToSelection(depth, softness) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
+      if (!selected.length) return;
+      const nextDepth = clamp(Number(depth) || 0, -60, 120);
+      const nextSoftness = clamp(Number(softness) || 18, 0, 80);
+      for (const item of selected) {
+        item.depthZ = nextDepth;
+        item.shadowSoftness = nextSoftness;
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyScrollRevealToSelection(mode) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
+      if (!selected.length) return;
+      for (const item of selected) item.scrollReveal = mode;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function buildMarqueeStrip(axis, gap) {
+      const selected = getCreativeSelection();
+      if (!selected.length) return;
+      const ordered = [...selected].sort((a, b) => (axis === "y" ? a.y - b.y : a.x - b.x));
+      const bounds = getBounds(ordered);
+      if (!bounds) return;
+      const safeGap = clamp(Number(gap) || 0, 0, 420);
+      let cursor = axis === "y" ? bounds.top : bounds.left;
+      for (const item of ordered) {
+        if (axis === "y") {
+          item.y = Math.round(cursor);
+          item.x = bounds.left;
+          cursor += item.h + safeGap;
+        } else {
+          item.x = Math.round(cursor);
+          item.y = bounds.top;
+          cursor += item.w + safeGap;
+        }
+        item.marqueeAxis = axis;
+        item.marqueeGap = safeGap;
+        if (item.type === "text") {
+          item.animation = axis === "x" ? "marquee-left" : "wave";
+        } else if (item.type === "image" || item.type === "video" || item.type === "audio") {
+          const motionName = axis === "x" ? "drift-x" : "drift-y";
+          if (!Array.isArray(item.mediaAnimations)) item.mediaAnimations = [];
+          if (!item.mediaAnimations.includes(motionName)) item.mediaAnimations.push(motionName);
+          item.animation = motionName;
+        }
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function clearMarqueeStripFromSelection() {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
+      if (!selected.length) return;
+      for (const item of selected) {
+        item.marqueeAxis = "x";
+        item.marqueeGap = 40;
+        if (item.type === "text" && (item.animation === "marquee-left" || item.animation === "marquee-right")) {
+          item.animation = "none";
+        }
+        if (Array.isArray(item.mediaAnimations)) {
+          item.mediaAnimations = item.mediaAnimations.filter((name) => name !== "drift-x" && name !== "drift-y");
+        }
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function saveStylePresetFromSelection() {
+      const active = getActiveItem();
+      if (!active) return;
+      const name = (stylePresetNameInput && stylePresetNameInput.value ? stylePresetNameInput.value.trim() : "") || `Preset ${Date.now().toString(36)}`;
+      const list = Array.isArray(settings.stylePresets) ? settings.stylePresets : [];
+      list.push({
+        id: generateId(),
+        name: name.slice(0, 60),
+        style: styleSnapshotFromItem(active)
+      });
+      settings.stylePresets = list.slice(-80);
+      if (stylePresetNameInput) stylePresetNameInput.value = "";
+      refreshStylePresetSelect();
+      persistAll(true);
+    }
+
+    function applySelectedStylePreset() {
+      if (!stylePresetSelect) return;
+      const list = Array.isArray(settings.stylePresets) ? settings.stylePresets : [];
+      const selectedPreset = list.find((entry) => entry.id === stylePresetSelect.value);
+      if (!selectedPreset || !selectedPreset.style) return;
+      const targets = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
+      if (!targets.length) return;
+      for (const item of targets) applyStyleSnapshotToItem(item, selectedPreset.style);
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function deleteSelectedStylePreset() {
+      if (!stylePresetSelect) return;
+      const id = stylePresetSelect.value;
+      if (!id) return;
+      const list = Array.isArray(settings.stylePresets) ? settings.stylePresets : [];
+      settings.stylePresets = list.filter((entry) => entry.id !== id);
+      refreshStylePresetSelect();
+      persistAll(true);
+    }
+
+    function playSceneTransition() {
+      const classes = [
+        "scene-transition-fade",
+        "scene-transition-slide-left",
+        "scene-transition-slide-right",
+        "scene-transition-zoom"
+      ];
+      canvasWrap.classList.remove(...classes);
+      const mode = settings.sceneTransition || "none";
+      if (mode === "none") return;
+      const cls = `scene-transition-${mode}`;
+      const speed = clamp(Number(settings.sceneTransitionSpeed) || 0.5, 0.1, 4);
+      canvasWrap.style.setProperty("--scene-speed", `${speed}s`);
+      void canvasWrap.offsetWidth;
+      canvasWrap.classList.add(cls);
+      window.setTimeout(() => {
+        canvasWrap.classList.remove(cls);
+      }, Math.ceil((speed * 1000) + 80));
+    }
+
+    function refreshRevealObserver() {
+      if (revealObserver) {
+        revealObserver.disconnect();
+        revealObserver = null;
+      }
+      if (isEditMode) return;
+      const targets = Array.from(canvas.querySelectorAll(".canvas-item.reveal-ready"));
+      if (!targets.length) return;
+      revealObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("revealed");
+          if (revealObserver) revealObserver.unobserve(entry.target);
+        }
+      }, {
+        root: null,
+        threshold: 0.15
+      });
+      for (const target of targets) {
+        const rect = target.getBoundingClientRect();
+        if (rect.top <= window.innerHeight * 0.82) {
+          target.classList.add("revealed");
+          continue;
+        }
+        revealObserver.observe(target);
+      }
+    }
+
     function isTypingTarget(target) {
       if (!target) return false;
       const tag = target.tagName;
@@ -1515,6 +1999,7 @@
       workspace.publicCanvasId = next.id;
       const saved = saveWorkspace();
       loadCanvasIntoState(next.id, true);
+      playSceneTransition();
       resetHistoryState();
       pushHistory();
       setSaveStatus(saved ? "Saved" : "Save failed");
@@ -1531,6 +2016,7 @@
       workspace.publicCanvasId = nextCanvasId;
       const saved = saveWorkspace();
       loadCanvasIntoState(nextCanvasId, true);
+      playSceneTransition();
       resetHistoryState();
       pushHistory();
       setSaveStatus(saved ? "Saved" : "Save failed");
@@ -1742,8 +2228,13 @@
       gridSizeInput.disabled = !isEditMode;
       guideToggle.disabled = !isEditMode;
       canvasSelect.disabled = !isEditMode;
+      if (prevCanvasBtn) prevCanvasBtn.disabled = !isEditMode || workspace.canvases.length < 2;
+      if (nextCanvasBtn) nextCanvasBtn.disabled = !isEditMode || workspace.canvases.length < 2;
       if (publicCanvasSelect) publicCanvasSelect.disabled = !isEditMode;
       newCanvasBtn.disabled = !isEditMode;
+      if (quickClumpBtn) quickClumpBtn.disabled = !isEditMode || movableCount < 2;
+      if (quickRandomizeBtn) quickRandomizeBtn.disabled = !isEditMode || movableCount < 1;
+      if (quickInspireBtn) quickInspireBtn.disabled = !isEditMode || movableCount < 1;
       alignLeftBtn.disabled = !isEditMode || movableCount < 2;
       alignCenterBtn.disabled = !isEditMode || movableCount < 2;
       alignRightBtn.disabled = !isEditMode || movableCount < 2;
@@ -1761,6 +2252,45 @@
       toggleVisibleBtn.disabled = !isEditMode || !hasItem;
 
       layerDeleteBtn.disabled = !hasItem || !isEditMode;
+      if (smartLayoutSelect) smartLayoutSelect.disabled = !isEditMode || movableCount < 2;
+      if (layoutGapInput) layoutGapInput.disabled = !isEditMode || movableCount < 2;
+      if (applySmartLayoutBtn) applySmartLayoutBtn.disabled = !isEditMode || movableCount < 2;
+      if (slideColumnsInput) slideColumnsInput.disabled = !isEditMode || movableCount < 2;
+      if (applySlideColumnsBtn) applySlideColumnsBtn.disabled = !isEditMode || movableCount < 2;
+      if (balanceColumnsBtn) balanceColumnsBtn.disabled = !isEditMode || movableCount < 2;
+      if (clumpStrengthInput) clumpStrengthInput.disabled = !isEditMode || movableCount < 2;
+      if (clumpSpreadInput) clumpSpreadInput.disabled = !isEditMode || movableCount < 2;
+      if (clumpBtn) clumpBtn.disabled = !isEditMode || movableCount < 2;
+      if (explodeBtn) explodeBtn.disabled = !isEditMode || movableCount < 2;
+      if (randomizeLayoutBtn) randomizeLayoutBtn.disabled = !isEditMode || movableCount < 1;
+      if (inspireLayoutBtn) inspireLayoutBtn.disabled = !isEditMode || movableCount < 1;
+      if (hoverFxSelect) hoverFxSelect.disabled = !isEditMode || !hasMediaSelection;
+      if (applyHoverFxBtn) applyHoverFxBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (clearHoverFxBtn) clearHoverFxBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (hoverSwapInput) hoverSwapInput.disabled = !isEditMode || !hasMediaSelection;
+      if (applyHoverSwapBtn) applyHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (clearHoverSwapBtn) clearHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (blendModeSelect) blendModeSelect.disabled = !isEditMode || !hasItem;
+      if (applyBlendModeBtn) applyBlendModeBtn.disabled = !isEditMode || !hasItem;
+      if (clearBlendModeBtn) clearBlendModeBtn.disabled = !isEditMode || !hasItem;
+      if (depthInput) depthInput.disabled = !isEditMode || !hasItem;
+      if (shadowSoftnessInput) shadowSoftnessInput.disabled = !isEditMode || !hasItem;
+      if (applyDepthBtn) applyDepthBtn.disabled = !isEditMode || !hasItem;
+      if (scrollRevealSelect) scrollRevealSelect.disabled = !isEditMode || !hasItem;
+      if (applyScrollRevealBtn) applyScrollRevealBtn.disabled = !isEditMode || !hasItem;
+      if (clearScrollRevealBtn) clearScrollRevealBtn.disabled = !isEditMode || !hasItem;
+      if (marqueeAxisSelect) marqueeAxisSelect.disabled = !isEditMode || !hasItem;
+      if (marqueeGapInput) marqueeGapInput.disabled = !isEditMode || !hasItem;
+      if (applyMarqueeStripBtn) applyMarqueeStripBtn.disabled = !isEditMode || movableCount < 1;
+      if (clearMarqueeStripBtn) clearMarqueeStripBtn.disabled = !isEditMode || movableCount < 1;
+      if (sceneTransitionSelect) sceneTransitionSelect.disabled = !isEditMode;
+      if (sceneTransitionSpeedInput) sceneTransitionSpeedInput.disabled = !isEditMode;
+      if (applySceneTransitionBtn) applySceneTransitionBtn.disabled = !isEditMode;
+      if (stylePresetNameInput) stylePresetNameInput.disabled = !isEditMode || !hasItem;
+      if (saveStylePresetBtn) saveStylePresetBtn.disabled = !isEditMode || !hasItem;
+      if (stylePresetSelect) stylePresetSelect.disabled = !isEditMode || !Array.isArray(settings.stylePresets) || !settings.stylePresets.length;
+      if (applyStylePresetBtn) applyStylePresetBtn.disabled = !isEditMode || !hasItem || !Array.isArray(settings.stylePresets) || !settings.stylePresets.length;
+      if (deleteStylePresetBtn) deleteStylePresetBtn.disabled = !isEditMode || !Array.isArray(settings.stylePresets) || !settings.stylePresets.length;
 
       if (active) {
         if ((active.type === "image" || active.type === "video" || active.type === "audio") && Array.isArray(active.mediaAnimations) && active.mediaAnimations.length) {
@@ -1786,7 +2316,17 @@
         linkDisplaySelect.value = ["default", "plain", "button", "highlight"].includes(active.linkDisplay)
           ? active.linkDisplay
           : "default";
+        if (hoverFxSelect) hoverFxSelect.value = active.hoverFx || "none";
+        if (blendModeSelect) blendModeSelect.value = active.blendMode || "normal";
+        if (depthInput) depthInput.value = String(active.depthZ || 0);
+        if (shadowSoftnessInput) shadowSoftnessInput.value = String(active.shadowSoftness || 18);
+        if (scrollRevealSelect) scrollRevealSelect.value = active.scrollReveal || "none";
+        if (marqueeAxisSelect) marqueeAxisSelect.value = active.marqueeAxis || "x";
+        if (marqueeGapInput) marqueeGapInput.value = String(active.marqueeGap || 40);
       }
+      if (sceneTransitionSelect) sceneTransitionSelect.value = settings.sceneTransition || "none";
+      if (sceneTransitionSpeedInput) sceneTransitionSpeedInput.value = String(settings.sceneTransitionSpeed || 0.5);
+      refreshStylePresetSelect();
 
       updateHistoryButtons();
     }
@@ -1909,10 +2449,25 @@
         if (item.h) node.style.height = `${item.h}px`;
         node.style.transformOrigin = "center center";
         node.style.transform = `rotate(${Number(item.rotateDeg) || 0}deg)`;
+        node.dataset.hoverFx = item.hoverFx || "none";
+        node.style.mixBlendMode = item.blendMode && item.blendMode !== "normal" ? item.blendMode : "normal";
+        const depth = Number(item.depthZ) || 0;
+        const softness = clamp(Number(item.shadowSoftness) || 18, 0, 80);
+        if (depth !== 0) {
+          const offsetY = Math.round(depth * 0.55);
+          const blur = Math.max(0, Math.round(softness + Math.abs(depth)));
+          node.style.boxShadow = `0 ${offsetY}px ${blur}px rgba(0,0,0,0.35)`;
+        } else {
+          node.style.boxShadow = "";
+        }
         if (isEditMode) node.classList.add("editing");
         if (isSelected(item.id)) node.classList.add("selected");
         if (item.locked) node.style.opacity = "0.72";
         if (item.type === "text" && item.blogMode) node.classList.add("blog-window");
+        if (!isEditMode && item.scrollReveal && item.scrollReveal !== "none") {
+          node.classList.add("reveal-ready");
+          if (item.scrollReveal !== "fade-up") node.classList.add(`reveal-${item.scrollReveal}`);
+        }
 
         const actions = document.createElement("div");
         actions.className = "item-actions";
@@ -1986,6 +2541,16 @@
           image.src = item.src;
           image.alt = "Portfolio image";
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+          if (!isEditMode && item.hoverSwapSrc) {
+            const baseSrc = item.src;
+            const swapSrc = item.hoverSwapSrc;
+            node.addEventListener("pointerenter", () => {
+              image.src = swapSrc;
+            });
+            node.addEventListener("pointerleave", () => {
+              image.src = baseSrc;
+            });
+          }
           node.appendChild(image);
         } else if (item.type === "video") {
           const video = document.createElement("video");
@@ -2044,6 +2609,24 @@
 
         addTransformHandles(node, item);
 
+        node.addEventListener("pointermove", (event) => {
+          if (!isEditMode || item.locked || transformState) return;
+          const cornerDir = getCornerResizeDirection(event, node);
+          if (cornerDir) {
+            node.style.cursor = getResizeCursorForDirection(cornerDir);
+            return;
+          }
+          if (isPointerNearRotateCorner(event, node)) {
+            node.style.cursor = "grab";
+            return;
+          }
+          node.style.cursor = "";
+        });
+
+        node.addEventListener("pointerleave", () => {
+          if (isEditMode) node.style.cursor = "";
+        });
+
         node.addEventListener("pointerdown", (event) => {
           const isAction = event.target.closest(".item-actions");
           const isHandle = event.target.closest(".transform-handle");
@@ -2096,6 +2679,7 @@
       }
       renderLayerList();
       updatePanelState();
+      refreshRevealObserver();
       ensureCanvasHeight();
     }
 
@@ -2121,6 +2705,14 @@
         }
       }
       return bestDir;
+    }
+
+    function getResizeCursorForDirection(dir) {
+      if (dir === "nw" || dir === "se") return "nwse-resize";
+      if (dir === "ne" || dir === "sw") return "nesw-resize";
+      if (dir === "n" || dir === "s") return "ns-resize";
+      if (dir === "e" || dir === "w") return "ew-resize";
+      return "move";
     }
 
     function isPointerNearRotateCorner(event, node) {
@@ -2409,12 +3001,17 @@
       addTextBtn.hidden = !enabled;
       if (addBlogBtn) addBlogBtn.hidden = !enabled;
       addImageBtn.hidden = !enabled;
+      if (prevCanvasBtn) prevCanvasBtn.hidden = !enabled;
       canvasSelect.hidden = !enabled;
+      if (nextCanvasBtn) nextCanvasBtn.hidden = !enabled;
       if (publicCanvasSelect) publicCanvasSelect.hidden = !enabled;
       newCanvasBtn.hidden = !enabled;
       duplicateBtn.hidden = !enabled;
       undoBtn.hidden = !enabled;
       redoBtn.hidden = !enabled;
+      if (quickClumpBtn) quickClumpBtn.hidden = !enabled;
+      if (quickRandomizeBtn) quickRandomizeBtn.hidden = !enabled;
+      if (quickInspireBtn) quickInspireBtn.hidden = !enabled;
       toggleDockBtn.hidden = !enabled;
       saveBtn.hidden = !enabled;
       publishBtn.hidden = !enabled;
@@ -2444,6 +3041,14 @@
         fontFamily: DEFAULT_FONT_FAMILY,
         animation: "none",
         animationSpeed: 6,
+        hoverFx: "none",
+        hoverSwapSrc: "",
+        blendMode: "normal",
+        depthZ: 0,
+        shadowSoftness: 18,
+        scrollReveal: "none",
+        marqueeAxis: "x",
+        marqueeGap: 40,
         textScaleX: 1,
         textScaleY: 1,
         linkUrl: "",
@@ -2476,6 +3081,14 @@
         fontFamily: DEFAULT_FONT_FAMILY,
         animation: "none",
         animationSpeed: 6,
+        hoverFx: "none",
+        hoverSwapSrc: "",
+        blendMode: "normal",
+        depthZ: 0,
+        shadowSoftness: 18,
+        scrollReveal: "none",
+        marqueeAxis: "x",
+        marqueeGap: 40,
         textScaleX: 1,
         textScaleY: 1,
         linkUrl: "",
@@ -2728,6 +3341,14 @@
         animation: "none",
         animationSpeed: 6,
         mediaAnimations: [],
+        hoverFx: "none",
+        hoverSwapSrc: "",
+        blendMode: "normal",
+        depthZ: 0,
+        shadowSoftness: 18,
+        scrollReveal: "none",
+        marqueeAxis: "x",
+        marqueeGap: 40,
         fitMode: "contain",
         pngTrimStatus: type === "image" && isPngDataUrl(dataUrl) ? "done" : "",
         linkUrl: "",
@@ -2832,6 +3453,27 @@
     newCanvasBtn.addEventListener("click", () => {
       createNewCanvas();
     });
+    if (prevCanvasBtn) {
+      prevCanvasBtn.addEventListener("click", () => {
+        const ids = workspace.canvases.map((entry) => entry.id);
+        const index = ids.indexOf(currentCanvasId);
+        if (index < 0) return;
+        const next = ids[(index - 1 + ids.length) % ids.length];
+        switchActiveCanvas(next);
+      });
+    }
+    if (nextCanvasBtn) {
+      nextCanvasBtn.addEventListener("click", () => {
+        const ids = workspace.canvases.map((entry) => entry.id);
+        const index = ids.indexOf(currentCanvasId);
+        if (index < 0) return;
+        const next = ids[(index + 1) % ids.length];
+        switchActiveCanvas(next);
+      });
+    }
+    if (quickClumpBtn) quickClumpBtn.addEventListener("click", () => applyClumpToSelection(false));
+    if (quickRandomizeBtn) quickRandomizeBtn.addEventListener("click", randomizeSelectionLayout);
+    if (quickInspireBtn) quickInspireBtn.addEventListener("click", inspireSelection);
 
     addTextBtn.addEventListener("click", addTextItem);
     if (addBlogBtn) addBlogBtn.addEventListener("click", addBlogItem);
@@ -3037,6 +3679,103 @@
     toggleMediaFitBtn.addEventListener("click", () => {
       toggleMediaFitSelection();
     });
+
+    if (applySmartLayoutBtn) {
+      applySmartLayoutBtn.addEventListener("click", () => {
+        applySmartLayoutToSelection(
+          (smartLayoutSelect && smartLayoutSelect.value) || "grid",
+          Number(layoutGapInput && layoutGapInput.value) || 26
+        );
+      });
+    }
+    if (applySlideColumnsBtn) {
+      applySlideColumnsBtn.addEventListener("click", () => {
+        const selected = getCreativeSelection();
+        if (!selected.length) return;
+        arrangeSelectionInColumns(
+          selected,
+          Number(slideColumnsInput && slideColumnsInput.value) || 3,
+          Number(layoutGapInput && layoutGapInput.value) || 26,
+          false
+        );
+        persistAll(true);
+        renderCanvas();
+      });
+    }
+    if (balanceColumnsBtn) {
+      balanceColumnsBtn.addEventListener("click", () => {
+        const selected = getCreativeSelection();
+        if (!selected.length) return;
+        arrangeSelectionInColumns(
+          selected,
+          Number(slideColumnsInput && slideColumnsInput.value) || 3,
+          Number(layoutGapInput && layoutGapInput.value) || 26,
+          true
+        );
+        persistAll(true);
+        renderCanvas();
+      });
+    }
+    if (clumpBtn) clumpBtn.addEventListener("click", () => applyClumpToSelection(false));
+    if (explodeBtn) explodeBtn.addEventListener("click", () => applyClumpToSelection(true));
+    if (randomizeLayoutBtn) randomizeLayoutBtn.addEventListener("click", randomizeSelectionLayout);
+    if (inspireLayoutBtn) inspireLayoutBtn.addEventListener("click", inspireSelection);
+    if (applyHoverFxBtn) {
+      applyHoverFxBtn.addEventListener("click", () => {
+        applyHoverFxToSelection((hoverFxSelect && hoverFxSelect.value) || "none");
+      });
+    }
+    if (clearHoverFxBtn) clearHoverFxBtn.addEventListener("click", () => applyHoverFxToSelection("none"));
+    if (applyHoverSwapBtn) {
+      applyHoverSwapBtn.addEventListener("click", async () => {
+        const file = hoverSwapInput && hoverSwapInput.files && hoverSwapInput.files[0];
+        if (!file) return;
+        const dataUrl = await readFileAsDataUrl(file);
+        applyHoverSwapToSelection(dataUrl);
+        hoverSwapInput.value = "";
+      });
+    }
+    if (clearHoverSwapBtn) clearHoverSwapBtn.addEventListener("click", clearHoverSwapFromSelection);
+    if (applyBlendModeBtn) {
+      applyBlendModeBtn.addEventListener("click", () => {
+        applyBlendModeToSelection((blendModeSelect && blendModeSelect.value) || "normal");
+      });
+    }
+    if (clearBlendModeBtn) clearBlendModeBtn.addEventListener("click", () => applyBlendModeToSelection("normal"));
+    if (applyDepthBtn) {
+      applyDepthBtn.addEventListener("click", () => {
+        applyDepthToSelection(
+          Number(depthInput && depthInput.value) || 0,
+          Number(shadowSoftnessInput && shadowSoftnessInput.value) || 18
+        );
+      });
+    }
+    if (applyScrollRevealBtn) {
+      applyScrollRevealBtn.addEventListener("click", () => {
+        applyScrollRevealToSelection((scrollRevealSelect && scrollRevealSelect.value) || "none");
+      });
+    }
+    if (clearScrollRevealBtn) clearScrollRevealBtn.addEventListener("click", () => applyScrollRevealToSelection("none"));
+    if (applyMarqueeStripBtn) {
+      applyMarqueeStripBtn.addEventListener("click", () => {
+        buildMarqueeStrip(
+          (marqueeAxisSelect && marqueeAxisSelect.value) || "x",
+          Number(marqueeGapInput && marqueeGapInput.value) || 40
+        );
+      });
+    }
+    if (clearMarqueeStripBtn) clearMarqueeStripBtn.addEventListener("click", clearMarqueeStripFromSelection);
+    if (applySceneTransitionBtn) {
+      applySceneTransitionBtn.addEventListener("click", () => {
+        settings.sceneTransition = (sceneTransitionSelect && sceneTransitionSelect.value) || "none";
+        settings.sceneTransitionSpeed = clamp(Number(sceneTransitionSpeedInput && sceneTransitionSpeedInput.value) || 0.5, 0.1, 4);
+        applySettings();
+        persistAll(true);
+      });
+    }
+    if (saveStylePresetBtn) saveStylePresetBtn.addEventListener("click", saveStylePresetFromSelection);
+    if (applyStylePresetBtn) applyStylePresetBtn.addEventListener("click", applySelectedStylePreset);
+    if (deleteStylePresetBtn) deleteStylePresetBtn.addEventListener("click", deleteSelectedStylePreset);
 
     alignLeftBtn.addEventListener("click", () => alignSelection("left"));
     alignCenterBtn.addEventListener("click", () => alignSelection("center"));
