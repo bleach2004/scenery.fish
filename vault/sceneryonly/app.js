@@ -804,13 +804,12 @@
       if (isEditMode) {
         let editMinHeight = window.innerHeight * 1.8;
         editMinHeight = Math.max(editMinHeight, 1600);
-        const fitScale = clamp(Math.min(1, availableWidth / boundsWidth), 0.35, 1);
-        const rawHeight = Math.max(boundsHeight, Math.ceil(editMinHeight / fitScale));
+        const rawHeight = Math.max(boundsHeight, editMinHeight);
         canvas.style.width = `${boundsWidth}px`;
         canvas.style.height = `${rawHeight}px`;
         canvas.style.transformOrigin = "top left";
-        canvas.style.transform = fitScale < 0.999 ? `scale(${fitScale})` : "none";
-        canvasWrap.style.minHeight = `${Math.max(editMinHeight, Math.ceil(rawHeight * fitScale))}px`;
+        canvas.style.transform = "none";
+        canvasWrap.style.minHeight = `${rawHeight}px`;
         return;
       }
 
@@ -1923,11 +1922,12 @@
         }
 
         if (item.linkUrl) {
-          if (item.linkDisplay === "button") {
+          const allowFrameStyle = item.type !== "image";
+          if (allowFrameStyle && item.linkDisplay === "button") {
             node.style.border = "1px solid rgba(255,255,255,0.35)";
             node.style.borderRadius = "12px";
             node.style.background = "rgba(255,255,255,0.05)";
-          } else if (item.linkDisplay === "highlight") {
+          } else if (allowFrameStyle && item.linkDisplay === "highlight") {
             node.style.border = "1px dashed rgba(255,255,255,0.5)";
           }
           if (!isEditMode) {
@@ -2297,6 +2297,109 @@
       });
     }
 
+    function isPngDataUrl(dataUrl) {
+      return /^data:image\/png(?:;|,)/i.test(String(dataUrl || ""));
+    }
+
+    function fitImportedMediaSize(type, width, height) {
+      const w = Number(width);
+      const h = Number(height);
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return null;
+      const maxW = type === "video" ? 640 : 520;
+      const maxH = type === "video" ? 420 : 420;
+      const scale = Math.min(1, maxW / w, maxH / h);
+      return {
+        w: Math.max(24, Math.round(w * scale)),
+        h: Math.max(24, Math.round(h * scale))
+      };
+    }
+
+    function loadImageElement(dataUrl) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.decoding = "async";
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("Failed to decode image."));
+        image.src = dataUrl;
+      });
+    }
+
+    async function trimTransparentPng(dataUrl) {
+      const image = await loadImageElement(dataUrl);
+      const width = image.naturalWidth || image.width || 0;
+      const height = image.naturalHeight || image.height || 0;
+      if (!width || !height) {
+        return { dataUrl, width, height };
+      }
+      const source = document.createElement("canvas");
+      source.width = width;
+      source.height = height;
+      const ctx = source.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        return { dataUrl, width, height };
+      }
+      ctx.drawImage(image, 0, 0);
+      const pixels = ctx.getImageData(0, 0, width, height).data;
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const alpha = pixels[((y * width) + x) * 4 + 3];
+          if (alpha <= 8) continue;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+      if (maxX < minX || maxY < minY) {
+        return { dataUrl, width, height };
+      }
+      const trimmedWidth = (maxX - minX) + 1;
+      const trimmedHeight = (maxY - minY) + 1;
+      if (trimmedWidth === width && trimmedHeight === height) {
+        return { dataUrl, width, height };
+      }
+      const trimmed = document.createElement("canvas");
+      trimmed.width = trimmedWidth;
+      trimmed.height = trimmedHeight;
+      const trimmedCtx = trimmed.getContext("2d");
+      if (!trimmedCtx) {
+        return { dataUrl, width, height };
+      }
+      trimmedCtx.drawImage(source, minX, minY, trimmedWidth, trimmedHeight, 0, 0, trimmedWidth, trimmedHeight);
+      return {
+        dataUrl: trimmed.toDataURL("image/png"),
+        width: trimmedWidth,
+        height: trimmedHeight
+      };
+    }
+
+    async function prepareImageForImport(dataUrl) {
+      try {
+        if (isPngDataUrl(dataUrl)) {
+          const trimmed = await trimTransparentPng(dataUrl);
+          return {
+            dataUrl: trimmed.dataUrl,
+            sizeHint: fitImportedMediaSize("image", trimmed.width, trimmed.height)
+          };
+        }
+        const image = await loadImageElement(dataUrl);
+        return {
+          dataUrl,
+          sizeHint: fitImportedMediaSize(
+            "image",
+            image.naturalWidth || image.width,
+            image.naturalHeight || image.height
+          )
+        };
+      } catch {
+        return { dataUrl, sizeHint: null };
+      }
+    }
+
     function pointToCanvas(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
       const scale = getCanvasPointerScale();
@@ -2316,13 +2419,21 @@
         if (!mediaType) continue;
         try {
           const dataUrl = await readFileAsDataUrl(file);
+          let src = dataUrl;
+          let sizeHint = null;
+          if (mediaType === "image") {
+            const prepared = await prepareImageForImport(dataUrl);
+            src = prepared.dataUrl;
+            sizeHint = prepared.sizeHint;
+          }
           const next = addMediaItem(
-            dataUrl,
+            src,
             mediaType,
             file.name,
             base.x + (imported * 28),
             base.y + (imported * 22),
-            true
+            true,
+            sizeHint
           );
           if (next) {
             createdIds.push(next.id);
@@ -2339,7 +2450,7 @@
       renderCanvas();
     }
 
-    function addMediaItem(dataUrl, mediaType, nameHint = "", x = null, y = null, skipRender = false) {
+    function addMediaItem(dataUrl, mediaType, nameHint = "", x = null, y = null, skipRender = false, sizeHint = null) {
       const type = mediaType || "image";
       let w = 300;
       let h = 220;
@@ -2349,6 +2460,9 @@
       } else if (type === "video") {
         w = 360;
         h = 220;
+      } else if (sizeHint && Number.isFinite(sizeHint.w) && Number.isFinite(sizeHint.h)) {
+        w = Math.max(24, Math.round(sizeHint.w));
+        h = Math.max(24, Math.round(sizeHint.h));
       }
       const newItem = {
         id: generateId(),
