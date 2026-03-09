@@ -677,6 +677,7 @@
           if (typeof next.blogMode !== "boolean") next.blogMode = false;
         } else if (next.type === "image" || next.type === "video" || next.type === "audio") {
           if (typeof next.src !== "string") next.src = "";
+          if (!Array.isArray(next.mediaAnimations)) next.mediaAnimations = [];
           if (next.type !== "audio") {
             if (next.fitMode !== "stretch") next.fitMode = "contain";
           }
@@ -1196,7 +1197,18 @@
       );
       if (!selected.length) return;
       for (const item of selected) {
-        item.animation = animationName;
+        if (item.type === "image" || item.type === "video" || item.type === "audio") {
+          if (!Array.isArray(item.mediaAnimations)) item.mediaAnimations = [];
+          if (animationName === "none") {
+            item.mediaAnimations = [];
+            item.animation = "none";
+          } else {
+            if (!item.mediaAnimations.includes(animationName)) item.mediaAnimations.push(animationName);
+            item.animation = item.mediaAnimations[item.mediaAnimations.length - 1] || animationName;
+          }
+        } else {
+          item.animation = animationName;
+        }
         item.animationSpeed = clamp(speed, 0.2, 30);
       }
       persistAll(true);
@@ -1751,7 +1763,11 @@
       layerDeleteBtn.disabled = !hasItem || !isEditMode;
 
       if (active) {
-        animationSelect.value = active.animation || "none";
+        if ((active.type === "image" || active.type === "video" || active.type === "audio") && Array.isArray(active.mediaAnimations) && active.mediaAnimations.length) {
+          animationSelect.value = active.mediaAnimations[active.mediaAnimations.length - 1];
+        } else {
+          animationSelect.value = active.animation || "none";
+        }
         animationSpeedInput.value = String(active.animationSpeed || 6);
       }
       if (isText) {
@@ -1822,29 +1838,59 @@
         content.style.animation = `mediaSpin ${item.animationSpeed || 4}s linear infinite`;
       } else if (item.animation === "zoom") {
         content.style.animation = `mediaZoom ${item.animationSpeed || 2.4}s ease-in-out infinite`;
+      } else if (
+        item.animation === "bounce" ||
+        item.animation === "shake" ||
+        item.animation === "sway" ||
+        item.animation === "drift-x" ||
+        item.animation === "drift-y" ||
+        item.animation === "flip-x" ||
+        item.animation === "flip-y" ||
+        item.animation === "skew" ||
+        item.animation === "wobble" ||
+        item.animation === "flicker" ||
+        item.animation === "jello" ||
+        item.animation === "zoom-bounce"
+      ) {
+        const css = resolveAnimationCss(item.animation, item.animationSpeed || 2);
+        if (css) content.style.animation = css;
       }
+    }
+
+    function resolveAnimationCss(name, speed) {
+      if (name === "pulse") return `pulseText ${speed || 2}s ease-in-out infinite`;
+      if (name === "blink") return `blinkText ${speed || 1.2}s steps(1, end) infinite`;
+      if (name === "float") return `floatText ${speed || 3}s ease-in-out infinite`;
+      if (name === "wave") return `waveText ${speed || 2.2}s ease-in-out infinite`;
+      if (name === "rainbow") return `rainbowText ${speed || 5}s linear infinite`;
+      if (name === "glitch") return `glitchText ${speed || 0.7}s steps(1, end) infinite`;
+      if (name === "spin") return `mediaSpin ${speed || 4}s linear infinite`;
+      if (name === "zoom") return `mediaZoom ${speed || 2.4}s ease-in-out infinite`;
+      if (name === "bounce") return `mediaBounce ${speed || 1.6}s ease-in-out infinite`;
+      if (name === "shake") return `mediaShake ${speed || 0.9}s linear infinite`;
+      if (name === "sway") return `mediaSway ${speed || 2.2}s ease-in-out infinite`;
+      if (name === "drift-x") return `mediaDriftX ${speed || 4}s ease-in-out infinite`;
+      if (name === "drift-y") return `mediaDriftY ${speed || 3.6}s ease-in-out infinite`;
+      if (name === "flip-x") return `mediaFlipX ${speed || 2.8}s ease-in-out infinite`;
+      if (name === "flip-y") return `mediaFlipY ${speed || 2.8}s ease-in-out infinite`;
+      if (name === "skew") return `mediaSkew ${speed || 2.1}s ease-in-out infinite`;
+      if (name === "wobble") return `mediaWobble ${speed || 1.7}s ease-in-out infinite`;
+      if (name === "flicker") return `mediaFlicker ${speed || 0.5}s steps(1, end) infinite`;
+      if (name === "jello") return `mediaJello ${speed || 1.9}s ease-in-out infinite`;
+      if (name === "zoom-bounce") return `mediaZoomBounce ${speed || 2.3}s ease-in-out infinite`;
+      return "";
     }
 
     function applyMediaAnimationStyles(node, item) {
       node.style.animation = "none";
       node.style.filter = "none";
-      if (item.animation === "pulse") {
-        node.style.animation = `pulseText ${item.animationSpeed || 2}s ease-in-out infinite`;
-      } else if (item.animation === "blink") {
-        node.style.animation = `blinkText ${item.animationSpeed || 1.2}s steps(1, end) infinite`;
-      } else if (item.animation === "float") {
-        node.style.animation = `floatText ${item.animationSpeed || 3}s ease-in-out infinite`;
-      } else if (item.animation === "wave") {
-        node.style.animation = `waveText ${item.animationSpeed || 2.2}s ease-in-out infinite`;
-      } else if (item.animation === "rainbow") {
-        node.style.animation = `rainbowText ${item.animationSpeed || 5}s linear infinite`;
-      } else if (item.animation === "glitch") {
-        node.style.animation = `glitchText ${item.animationSpeed || 0.7}s steps(1, end) infinite`;
-      } else if (item.animation === "spin") {
-        node.style.animation = `mediaSpin ${item.animationSpeed || 4}s linear infinite`;
-      } else if (item.animation === "zoom") {
-        node.style.animation = `mediaZoom ${item.animationSpeed || 2.4}s ease-in-out infinite`;
-      }
+      const speed = item.animationSpeed || 2;
+      const stack = Array.isArray(item.mediaAnimations)
+        ? item.mediaAnimations.filter((name) => typeof name === "string" && name && name !== "none")
+        : [];
+      const names = stack.length ? stack : (item.animation && item.animation !== "none" ? [item.animation] : []);
+      const animationList = names.map((name) => resolveAnimationCss(name, speed)).filter(Boolean);
+      if (animationList.length) node.style.animation = animationList.join(", ");
     }
 
 
@@ -2679,6 +2725,9 @@
         h,
         hidden: false,
         locked: false,
+        animation: "none",
+        animationSpeed: 6,
+        mediaAnimations: [],
         fitMode: "contain",
         pngTrimStatus: type === "image" && isPngDataUrl(dataUrl) ? "done" : "",
         linkUrl: "",
