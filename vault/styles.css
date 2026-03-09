@@ -1,5 +1,29 @@
     @import url("../site-cursor.css");
 
+    @font-face {
+      font-family: "Avertequestra";
+      src: url("/assets/fonts/Avertequestra%20PERSONAL%20USE%20ONLY.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Death Font";
+      src: url("/assets/fonts/DEATH_FONT.TTF") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "Wafu Pop";
+      src: url("/assets/fonts/%E5%92%8C%E9%A2%A8%E3%81%BD%E3%81%A3%E3%81%B7.ttf") format("truetype");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
     :root {
       --bg: #000000;
       --text: #f3f3f3;
