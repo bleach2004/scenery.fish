@@ -1,6 +1,7 @@
     const AUTH_API_BASE = String(window.SCENERY_AUTH_BASE || "").trim().replace(/\/+$/, "");
     const API_BASE = AUTH_API_BASE || "";
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
+    const PUBLISHED_WORKSPACE_API_URL = `${API_BASE}/api/workspace/published`;
     const PUBLISH_MAX_BYTES = 6 * 1024 * 1024;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
@@ -347,6 +348,25 @@
     }
 
     async function loadPublishedWorkspace() {
+      const apiUrl = `${PUBLISHED_WORKSPACE_API_URL}?t=${Date.now()}`;
+      try {
+        const response = await fetch(apiUrl, { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json();
+          const apiPayload = payload && payload.payload && typeof payload.payload === "object"
+            ? payload.payload
+            : null;
+          if (apiPayload && apiPayload.workspace && typeof apiPayload.workspace === "object") {
+            return normalizeWorkspace(apiPayload.workspace);
+          }
+          if (apiPayload && Array.isArray(apiPayload.canvases)) {
+            return normalizeWorkspace(apiPayload);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load published workspace from API.", error);
+      }
+
       try {
         const response = await fetch(`${PUBLISHED_WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return null;
@@ -2174,6 +2194,7 @@
       resetHistoryState();
       setSaveStatus("Saved");
       pushHistory();
+      setEditMode(true);
       updateDockVisibility();
     }
 
