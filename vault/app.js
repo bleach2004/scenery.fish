@@ -183,6 +183,14 @@
     let lastVerifiedEditPassword = "";
     let revealObserver = null;
 
+    function forceHideVaultToolbar() {
+      if (!toolbar) return;
+      toolbar.setAttribute("hidden", "");
+      toolbar.style.setProperty("display", "none", "important");
+      toolbar.style.setProperty("visibility", "hidden", "important");
+      toolbar.style.setProperty("pointer-events", "none", "important");
+    }
+
     function apiUrl(path) {
       if (!path.startsWith("/")) return path;
       return `${API_BASE}${path}`;
@@ -3373,14 +3381,14 @@
       portfolio.removeAttribute("hidden");
       portfolio.classList.remove("locked");
       portfolio.removeAttribute("aria-hidden");
-      toolbar.setAttribute("hidden", "");
-      toolbar.style.display = "none";
+      forceHideVaultToolbar();
       sidePanel.style.display = "none";
       loadCanvasIntoState(workspace.activeCanvasId, true);
       resetHistoryState();
       setSaveStatus("Saved");
       pushHistory();
       setEditMode(false);
+      forceHideVaultToolbar();
       updateDockVisibility();
     }
 
@@ -3392,10 +3400,9 @@
         currentCanvasId = workspace.activeCanvasId;
       }
       refreshCanvasSelectors();
-      toolbar.setAttribute("hidden", "");
+      forceHideVaultToolbar();
       sidePanel.setAttribute("hidden", "");
       portfolio.setAttribute("hidden", "");
-      toolbar.style.display = "none";
       sidePanel.style.display = "none";
       if (gate) {
         gate.removeAttribute("hidden");
