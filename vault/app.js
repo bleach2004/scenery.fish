@@ -666,6 +666,7 @@
         if (!["default", "plain", "button", "highlight"].includes(next.linkDisplay)) next.linkDisplay = "default";
         if (!next.animation) next.animation = "none";
         if (!next.animationSpeed) next.animationSpeed = 6;
+        if (!Number.isFinite(next.rotateDeg)) next.rotateDeg = 0;
         if (next.type === "text") {
           if (!next.fontSize) next.fontSize = 20;
           if (!next.color) next.color = "#f3f3f3";
@@ -1836,6 +1837,8 @@
         node.style.width = `${item.w || 260}px`;
         node.style.zIndex = String(items.findIndex((entry) => entry.id === item.id) + 1);
         if (item.h) node.style.height = `${item.h}px`;
+        node.style.transformOrigin = "center center";
+        node.style.transform = `rotate(${Number(item.rotateDeg) || 0}deg)`;
         if (isEditMode) node.classList.add("editing");
         if (isSelected(item.id)) node.classList.add("selected");
         if (item.locked) node.style.opacity = "0.72";
@@ -1998,6 +2001,10 @@
           syncSelectionClasses();
           renderLayerList();
           updatePanelState();
+          if (!item.locked && isPointerNearRotateCorner(event, node)) {
+            startTransform(event, item, node, "rotate");
+            return;
+          }
           if (!item.locked) startTransform(event, item, node, "move");
         });
 
@@ -2006,6 +2013,24 @@
       renderLayerList();
       updatePanelState();
       ensureCanvasHeight();
+    }
+
+    function isPointerNearRotateCorner(event, node) {
+      const rect = node.getBoundingClientRect();
+      const corners = [
+        [rect.left, rect.top],
+        [rect.right, rect.top],
+        [rect.right, rect.bottom],
+        [rect.left, rect.bottom]
+      ];
+      const threshold = 18;
+      const thresholdSq = threshold * threshold;
+      for (const [x, y] of corners) {
+        const dx = event.clientX - x;
+        const dy = event.clientY - y;
+        if ((dx * dx) + (dy * dy) <= thresholdSq) return true;
+      }
+      return false;
     }
 
     function startTransform(event, item, node, mode, handle = "") {
@@ -2045,12 +2070,21 @@
           y: item.y,
           w: item.w,
           h: item.h,
+          rotateDeg: Number(item.rotateDeg) || 0,
           textScaleX: item.textScaleX || 1,
           textScaleY: item.textScaleY || 1
         },
         startItems,
         zoom
       };
+      if (mode === "rotate") {
+        const rect = node.getBoundingClientRect();
+        const centerX = rect.left + (rect.width / 2);
+        const centerY = rect.top + (rect.height / 2);
+        transformState.rotateCenterX = centerX;
+        transformState.rotateCenterY = centerY;
+        transformState.rotateStartAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
+      }
       node.setPointerCapture(event.pointerId);
     }
 
@@ -2083,6 +2117,19 @@
         item.textScaleY = sy;
         const content = transformState.node.querySelector(".content");
         if (content) content.style.scale = `${sx} ${sy}`;
+        return;
+      }
+
+      if (transformState.mode === "rotate") {
+        const centerX = transformState.rotateCenterX;
+        const centerY = transformState.rotateCenterY;
+        const currentAngle = Math.atan2(event.clientY - centerY, event.clientX - centerX) * (180 / Math.PI);
+        let nextAngle = transformState.startItem.rotateDeg + (currentAngle - transformState.rotateStartAngle);
+        if (event.shiftKey) {
+          nextAngle = Math.round(nextAngle / 15) * 15;
+        }
+        item.rotateDeg = nextAngle;
+        transformState.node.style.transform = `rotate(${nextAngle}deg)`;
         return;
       }
 
@@ -2221,6 +2268,7 @@
         transformState.node.style.top = `${item.y}px`;
         transformState.node.style.width = `${item.w}px`;
         transformState.node.style.height = `${item.h}px`;
+        transformState.node.style.transform = `rotate(${Number(item.rotateDeg) || 0}deg)`;
       }
       ensureCanvasHeight();
     }

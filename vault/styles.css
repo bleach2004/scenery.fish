@@ -107,6 +107,10 @@
       background: transparent;
     }
 
+    .canvas-item.image.selected.editing {
+      overflow: visible;
+    }
+
     .canvas-item.video {
       overflow: hidden;
       background: #000;
