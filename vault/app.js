@@ -766,6 +766,26 @@
         .filter((entry) => entry && !entry.hidden && (!movableOnly || !entry.locked));
     }
 
+    function getDockReservedWidth() {
+      if (!isUnlocked || !isEditMode || !settings.dockVisible) return 0;
+      if (window.innerWidth <= 900) return 0;
+      const raw = getComputedStyle(document.documentElement).getPropertyValue("--dock-width");
+      const parsed = Number.parseFloat(raw);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 380;
+    }
+
+    function getAvailableViewportWidth() {
+      return Math.max(320, window.innerWidth - getDockReservedWidth());
+    }
+
+    function getCanvasPointerScale() {
+      const rect = canvas.getBoundingClientRect();
+      const width = canvas.offsetWidth || canvas.clientWidth || 1;
+      if (!rect.width || !width) return 1;
+      const scale = rect.width / width;
+      return Number.isFinite(scale) && scale > 0 ? scale : 1;
+    }
+
     function ensureCanvasHeight() {
       let maxBottom = 0;
       let maxRight = 0;
@@ -779,18 +799,22 @@
 
       const boundsWidth = Math.max(640, Math.round(maxRight || 640));
       const boundsHeight = Math.max(420, Math.round(maxBottom || 420));
+      const availableWidth = getAvailableViewportWidth();
 
       if (isEditMode) {
         let editMinHeight = window.innerHeight * 1.8;
         editMinHeight = Math.max(editMinHeight, 1600);
-        canvas.style.transform = "none";
-        canvas.style.width = `${Math.max(boundsWidth, window.innerWidth)}px`;
-        canvas.style.height = `${Math.max(boundsHeight, editMinHeight)}px`;
-        canvasWrap.style.minHeight = "100vh";
+        const fitScale = clamp(Math.min(1, availableWidth / boundsWidth), 0.35, 1);
+        const rawHeight = Math.max(boundsHeight, Math.ceil(editMinHeight / fitScale));
+        canvas.style.width = `${boundsWidth}px`;
+        canvas.style.height = `${rawHeight}px`;
+        canvas.style.transformOrigin = "top left";
+        canvas.style.transform = fitScale < 0.999 ? `scale(${fitScale})` : "none";
+        canvasWrap.style.minHeight = `${Math.max(editMinHeight, Math.ceil(rawHeight * fitScale))}px`;
         return;
       }
 
-      const viewportWidth = Math.max(320, window.innerWidth);
+      const viewportWidth = availableWidth;
       const viewportHeight = Math.max(260, window.innerHeight - 16);
       let fitScale = Math.min(viewportWidth / boundsWidth, viewportHeight / boundsHeight);
       fitScale = clamp(fitScale, 0.25, 1.35);
@@ -1987,7 +2011,7 @@
         mode === "resize" &&
         item.type === "text" &&
         (event.altKey || event.shiftKey || settings.textStretchDrag);
-      const zoom = settings.zoom || 1;
+      const zoom = getCanvasPointerScale();
       const startItems = new Map();
       if (mode === "move") {
         const moveIds = isSelected(item.id) ? getSelectionIds() : [item.id];
@@ -2275,9 +2299,9 @@
 
     function pointToCanvas(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
-      const zoom = settings.zoom || 1;
-      const x = Math.max(0, Math.round((clientX - rect.left) / zoom));
-      const y = Math.max(0, Math.round((clientY - rect.top) / zoom));
+      const scale = getCanvasPointerScale();
+      const x = Math.max(0, Math.round((clientX - rect.left) / scale));
+      const y = Math.max(0, Math.round((clientY - rect.top) / scale));
       return { x, y };
     }
 
