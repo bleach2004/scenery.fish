@@ -2103,6 +2103,7 @@
           w: item.w,
           h: item.h,
           rotateDeg: Number(item.rotateDeg) || 0,
+          fontSize: Number(item.fontSize) || 20,
           textScaleX: item.textScaleX || 1,
           textScaleY: item.textScaleY || 1
         },
@@ -2293,6 +2294,17 @@
         item.y = Math.round(top);
         item.w = Math.round(right - left);
         item.h = Math.round(bottom - top);
+
+        if (item.type === "text") {
+          const baseW = Math.max(1, transformState.startItem.w);
+          const baseH = Math.max(1, transformState.startItem.h);
+          const scaleX = item.w / baseW;
+          const scaleY = item.h / baseH;
+          const scale = Math.max(0.2, (scaleX + scaleY) / 2);
+          item.fontSize = Math.round(clamp(transformState.startItem.fontSize * scale, 8, 300));
+          const content = transformState.node.querySelector(".content");
+          if (content) content.style.fontSize = `${item.fontSize}px`;
+        }
       }
 
       if (transformState.mode !== "move") {
