@@ -36,6 +36,7 @@
     const saveBtn = document.getElementById("saveBtn");
     const publishBtn = document.getElementById("publishBtn");
     const resetBtn = document.getElementById("resetBtn");
+    const purgeCacheBtn = document.getElementById("purgeCacheBtn");
     const saveStatus = document.getElementById("saveStatus");
     const imageInput = document.getElementById("imageInput");
     const importInput = document.getElementById("importInput");
@@ -408,6 +409,51 @@
         console.error("Failed to save vault workspace.", error);
         return false;
       }
+    }
+
+    function clearLocalWorkspaceCache() {
+      try {
+        localStorage.removeItem(WORKSPACE_KEY);
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+        localStorage.removeItem(LEGACY_SETTINGS_KEY);
+        return true;
+      } catch (error) {
+        console.error("Failed to clear vault workspace cache.", error);
+        return false;
+      }
+    }
+
+    async function purgeLocalWorkspaceCache() {
+      const confirmed = confirm("Clear local workspace cache on this browser? Published workspace will not be changed.");
+      if (!confirmed) return;
+      const cleared = clearLocalWorkspaceCache();
+      if (!cleared) {
+        alert("Failed to clear local cache. Browser storage may be blocked.");
+        return;
+      }
+
+      const publishedWorkspace = await loadPublishedWorkspace();
+      if (publishedWorkspace) {
+        workspace = publishedWorkspace;
+      } else {
+        workspace = normalizeWorkspace({
+          canvases: [
+            {
+              id: generateId(),
+              name: "Canvas 1",
+              items: normalizeItems(fallbackClone(DEFAULT_ITEMS)),
+              settings: normalizeSettings(getDefaultSettings())
+            }
+          ]
+        });
+      }
+
+      currentCanvasId = workspace.activeCanvasId;
+      refreshCanvasSelectors();
+      loadCanvasIntoState(workspace.activeCanvasId, true);
+      resetHistoryState();
+      setSaveStatus("Local cache cleared");
+      pushHistory();
     }
 
     function refreshCanvasSelectors() {
@@ -2039,6 +2085,7 @@
       saveBtn.hidden = !enabled;
       publishBtn.hidden = !enabled;
       resetBtn.hidden = !enabled;
+      if (purgeCacheBtn) purgeCacheBtn.hidden = !enabled;
       saveStatus.hidden = !enabled;
       updateDockVisibility();
       if (!enabled) {
@@ -2303,6 +2350,12 @@
       persistAll(true);
       renderCanvas();
     });
+
+    if (purgeCacheBtn) {
+      purgeCacheBtn.addEventListener("click", async () => {
+        await purgeLocalWorkspaceCache();
+      });
+    }
 
     bgColorInput.addEventListener("input", () => {
       settings.canvasBg = bgColorInput.value;
