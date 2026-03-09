@@ -1169,3 +1169,100 @@
         right: 0.6rem;
       }
     }
+
+    /* App-shell layout overrides */
+    :root {
+      --toolbar-height: 58px;
+      --dock-width: 380px;
+    }
+
+    .toolbar {
+      top: 0;
+      left: 0;
+      right: 0;
+      border-radius: 0;
+      border-left: 0;
+      border-right: 0;
+      border-top: 0;
+      border-bottom: 1px solid rgba(148, 170, 208, 0.28);
+      min-height: var(--toolbar-height);
+      padding: 0.5rem 0.75rem;
+      z-index: 1400;
+    }
+
+    .side-panel {
+      top: var(--toolbar-height);
+      right: 0;
+      bottom: 0;
+      width: var(--dock-width);
+      min-width: var(--dock-width);
+      max-width: var(--dock-width);
+      max-height: none;
+      border-radius: 0;
+      border-top: 0;
+      border-right: 0;
+      border-bottom: 0;
+      border-left: 1px solid rgba(147, 169, 206, 0.26);
+      box-shadow: none;
+      padding: 0.65rem;
+      z-index: 1300;
+    }
+
+    body.vault-unlocked .shell {
+      padding-top: var(--toolbar-height);
+      transition: padding-right 140ms ease;
+    }
+
+    body.vault-unlocked.vault-dock-open .shell {
+      padding-right: var(--dock-width);
+    }
+
+    body.vault-unlocked.vault-dock-open .canvas-wrap {
+      border-right: 1px solid rgba(137, 159, 194, 0.18);
+    }
+
+    .canvas-wrap {
+      min-height: calc(100vh - var(--toolbar-height));
+    }
+
+    .canvas {
+      min-height: calc(100vh - var(--toolbar-height));
+    }
+
+    .panel-scroll {
+      max-height: calc(100vh - var(--toolbar-height) - 4rem);
+    }
+
+    @media (max-width: 1100px) {
+      :root {
+        --dock-width: 320px;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .toolbar {
+        padding: 0.46rem 0.55rem;
+      }
+
+      .side-panel {
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        min-width: 0;
+        max-width: none;
+        height: 42vh;
+        border-left: 0;
+        border-top: 1px solid rgba(148, 170, 208, 0.25);
+      }
+
+      body.vault-unlocked.vault-dock-open .shell {
+        padding-right: 0;
+        padding-bottom: 42vh;
+      }
+
+      .panel-scroll {
+        max-height: calc(42vh - 4.4rem);
+      }
+    }

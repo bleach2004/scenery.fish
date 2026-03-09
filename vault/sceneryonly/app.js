@@ -533,11 +533,20 @@
       }
     }
 
+    function updateLayoutClasses() {
+      const dockVisible = Boolean(settings.dockVisible) && isEditMode;
+      document.body.classList.toggle("vault-unlocked", isUnlocked);
+      document.body.classList.toggle("vault-edit-mode", isUnlocked && isEditMode);
+      document.body.classList.toggle("vault-dock-open", isUnlocked && dockVisible);
+    }
+
     function updateDockVisibility() {
       const dockVisible = Boolean(settings.dockVisible);
       sidePanel.style.display = isEditMode && dockVisible ? "flex" : "none";
       toggleDockBtn.textContent = dockVisible ? "Hide Dock" : "Show Dock";
       toggleDockBtn.hidden = !isEditMode;
+      updateLayoutClasses();
+      ensureCanvasHeight();
     }
 
     function snapshotState() {
@@ -2362,6 +2371,7 @@
     }
 
     async function initializeGateState() {
+      isUnlocked = false;
       const publishedWorkspace = await loadPublishedWorkspace();
       if (publishedWorkspace) {
         workspace = publishedWorkspace;
@@ -2370,6 +2380,7 @@
       refreshCanvasSelectors();
       portfolio.classList.add("locked");
       portfolio.setAttribute("aria-hidden", "true");
+      updateLayoutClasses();
       passwordInput.focus();
     }
 
