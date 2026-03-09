@@ -804,12 +804,14 @@
       if (isEditMode) {
         let editMinHeight = window.innerHeight * 1.8;
         editMinHeight = Math.max(editMinHeight, 1600);
-        const rawHeight = Math.max(boundsHeight, editMinHeight);
+        const viewportWidth = Math.max(320, window.innerWidth);
+        const viewportScale = clamp(availableWidth / viewportWidth, 0.35, 1);
+        const rawHeight = Math.max(boundsHeight, Math.ceil(editMinHeight / viewportScale));
         canvas.style.width = `${boundsWidth}px`;
         canvas.style.height = `${rawHeight}px`;
         canvas.style.transformOrigin = "top left";
-        canvas.style.transform = "none";
-        canvasWrap.style.minHeight = `${rawHeight}px`;
+        canvas.style.transform = viewportScale < 0.999 ? `scale(${viewportScale})` : "none";
+        canvasWrap.style.minHeight = `${Math.max(editMinHeight, Math.ceil(rawHeight * viewportScale))}px`;
         return;
       }
 
@@ -1897,6 +1899,7 @@
         }
 
         if (item.type === "image") {
+          autoTrimExistingPngItem(item);
           const image = document.createElement("img");
           image.src = item.src;
           image.alt = "Portfolio image";
@@ -2058,8 +2061,8 @@
       const zoom = transformState.zoom || 1;
       const dxRaw = (event.clientX - transformState.startX) / zoom;
       const dyRaw = (event.clientY - transformState.startY) / zoom;
-      const minW = 120;
-      const minH = 80;
+      const minW = item.type === "image" ? 24 : 120;
+      const minH = item.type === "image" ? 24 : 80;
       hideGuides();
 
       if (transformState.mode === "text-scale") {
@@ -2135,20 +2138,63 @@
         let top = transformState.startItem.y;
         let right = transformState.startItem.x + transformState.startItem.w;
         let bottom = transformState.startItem.y + transformState.startItem.h;
+        const constrainedImageResize = item.type === "image" && item.fitMode !== "stretch";
 
         if (dir.includes("e")) right += dx;
         if (dir.includes("s")) bottom += dy;
         if (dir.includes("w")) left += dx;
         if (dir.includes("n")) top += dy;
 
-        if (right - left < minW) {
-          if (dir.includes("w")) left = right - minW;
-          else right = left + minW;
-        }
+        if (constrainedImageResize) {
+          const baseW = Math.max(1, transformState.startItem.w);
+          const baseH = Math.max(1, transformState.startItem.h);
+          const aspect = baseW / baseH;
+          let width = baseW;
+          let height = baseH;
 
-        if (bottom - top < minH) {
-          if (dir.includes("n")) top = bottom - minH;
-          else bottom = top + minH;
+          if (dir.includes("e")) width = baseW + dx;
+          if (dir.includes("w")) width = baseW - dx;
+          if (dir.includes("s")) height = baseH + dy;
+          if (dir.includes("n")) height = baseH - dy;
+
+          if (dir.length === 1) {
+            if (dir === "e" || dir === "w") {
+              height = width / aspect;
+            } else if (dir === "n" || dir === "s") {
+              width = height * aspect;
+            }
+          } else {
+            const scaleX = width / baseW;
+            const scaleY = height / baseH;
+            const scale = Math.abs(scaleX - 1) >= Math.abs(scaleY - 1) ? scaleX : scaleY;
+            width = baseW * scale;
+            height = baseH * scale;
+          }
+
+          width = Math.max(minW, width);
+          height = Math.max(minH, height);
+          const widthFirstHeight = width / aspect;
+          if (widthFirstHeight >= minH) {
+            height = widthFirstHeight;
+          } else {
+            width = minH * aspect;
+            height = minH;
+          }
+
+          if (dir.includes("w")) left = right - width;
+          else right = left + width;
+          if (dir.includes("n")) top = bottom - height;
+          else bottom = top + height;
+        } else {
+          if (right - left < minW) {
+            if (dir.includes("w")) left = right - minW;
+            else right = left + minW;
+          }
+
+          if (bottom - top < minH) {
+            if (dir.includes("n")) top = bottom - minH;
+            else bottom = top + minH;
+          }
         }
 
         if (left < 0) left = 0;
@@ -2400,6 +2446,40 @@
       }
     }
 
+    async function autoTrimExistingPngItem(item) {
+      if (!item || item.type !== "image") return;
+      if (item.pngTrimStatus === "pending" || item.pngTrimStatus === "done") return;
+      if (!isPngDataUrl(item.src)) {
+        item.pngTrimStatus = "done";
+        return;
+      }
+      item.pngTrimStatus = "pending";
+      try {
+        const original = await loadImageElement(item.src);
+        const originalWidth = original.naturalWidth || original.width || 0;
+        const originalHeight = original.naturalHeight || original.height || 0;
+        if (!originalWidth || !originalHeight) {
+          item.pngTrimStatus = "done";
+          return;
+        }
+        const trimmed = await trimTransparentPng(item.src);
+        if (trimmed.dataUrl === item.src || !trimmed.width || !trimmed.height) {
+          item.pngTrimStatus = "done";
+          return;
+        }
+        const widthRatio = trimmed.width / originalWidth;
+        const heightRatio = trimmed.height / originalHeight;
+        item.src = trimmed.dataUrl;
+        item.w = Math.max(24, Math.round((item.w || trimmed.width) * widthRatio));
+        item.h = Math.max(24, Math.round((item.h || trimmed.height) * heightRatio));
+        item.pngTrimStatus = "done";
+        persistAll(false);
+        renderCanvas();
+      } catch {
+        item.pngTrimStatus = "done";
+      }
+    }
+
     function pointToCanvas(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
       const scale = getCanvasPointerScale();
@@ -2475,6 +2555,7 @@
         hidden: false,
         locked: false,
         fitMode: "contain",
+        pngTrimStatus: type === "image" && isPngDataUrl(dataUrl) ? "done" : "",
         linkUrl: "",
         linkTarget: "_blank",
         linkDisplay: "default",
