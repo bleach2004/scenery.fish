@@ -175,8 +175,42 @@
       80% { transform: translate(1px, -2px); }
     }
 
+    @keyframes mediaSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes mediaZoom {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.08); }
+    }
+
     .canvas-item.selected.editing.text .content {
       padding-top: 1.8rem;
+    }
+
+    .canvas-item.text.blog-window {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 0.2rem;
+    }
+
+    .canvas-item.text.blog-window .content h1,
+    .canvas-item.text.blog-window .content h2,
+    .canvas-item.text.blog-window .content h3 {
+      margin: 0.35rem 0 0.4rem;
+      line-height: 1.2;
+    }
+
+    .canvas-item.text.blog-window .content p {
+      margin: 0.35rem 0;
+    }
+
+    .canvas-item.text.blog-window .content blockquote {
+      margin: 0.45rem 0;
+      padding: 0.2rem 0.55rem;
+      border-left: 3px solid rgba(255, 255, 255, 0.6);
+      color: #d6d6d6;
     }
 
     .text-move-handle {

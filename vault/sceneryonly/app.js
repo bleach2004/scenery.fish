@@ -28,6 +28,7 @@
     const toolbar = document.getElementById("toolbar");
     const toggleEditBtn = document.getElementById("toggleEdit");
     const addTextBtn = document.getElementById("addTextBtn");
+    const addBlogBtn = document.getElementById("addBlogBtn");
     const addImageBtn = document.getElementById("addImageBtn");
     const duplicateBtn = document.getElementById("duplicateBtn");
     const undoBtn = document.getElementById("undoBtn");
@@ -49,6 +50,16 @@
     const panelToggleButtons = Array.from(document.querySelectorAll("[data-panel-toggle]"));
     const boldBtn = document.getElementById("boldBtn");
     const italicBtn = document.getElementById("italicBtn");
+    const h1Btn = document.getElementById("h1Btn");
+    const h2Btn = document.getElementById("h2Btn");
+    const h3Btn = document.getElementById("h3Btn");
+    const paragraphBtn = document.getElementById("paragraphBtn");
+    const quoteBtn = document.getElementById("quoteBtn");
+    const bulletListBtn = document.getElementById("bulletListBtn");
+    const numberedListBtn = document.getElementById("numberedListBtn");
+    const alignLeftTextBtn = document.getElementById("alignLeftTextBtn");
+    const alignCenterTextBtn = document.getElementById("alignCenterTextBtn");
+    const alignRightTextBtn = document.getElementById("alignRightTextBtn");
     const selectionFontSizeInput = document.getElementById("selectionFontSizeInput");
     const applySelectionSizeBtn = document.getElementById("applySelectionSizeBtn");
     const boxFontSizeInput = document.getElementById("boxFontSizeInput");
@@ -644,14 +655,15 @@
         if (typeof next.linkUrl !== "string") next.linkUrl = "";
         if (next.linkTarget !== "_self") next.linkTarget = "_blank";
         if (!["default", "plain", "button", "highlight"].includes(next.linkDisplay)) next.linkDisplay = "default";
+        if (!next.animation) next.animation = "none";
+        if (!next.animationSpeed) next.animationSpeed = 6;
         if (next.type === "text") {
           if (!next.fontSize) next.fontSize = 20;
           if (!next.color) next.color = "#f3f3f3";
           if (!next.fontFamily) next.fontFamily = DEFAULT_FONT_FAMILY;
-          if (!next.animation) next.animation = "none";
-          if (!next.animationSpeed) next.animationSpeed = 6;
           if (!next.textScaleX) next.textScaleX = 1;
           if (!next.textScaleY) next.textScaleY = 1;
+          if (typeof next.blogMode !== "boolean") next.blogMode = false;
         } else if (next.type === "image" || next.type === "video" || next.type === "audio") {
           if (typeof next.src !== "string") next.src = "";
           if (next.type !== "audio") {
@@ -866,6 +878,28 @@
     }
 
     function applyTextCommand(command) {
+      const content = getActiveTextContent();
+      const active = getActiveItem();
+      if (!content || !isEditMode || !active || active.locked) return;
+      restoreActiveTextRange();
+      document.execCommand(command, false);
+      captureActiveTextRange();
+      syncActiveTextToModel();
+      pushHistory();
+    }
+
+    function applyFormatBlock(tagName) {
+      const content = getActiveTextContent();
+      const active = getActiveItem();
+      if (!content || !isEditMode || !active || active.locked) return;
+      restoreActiveTextRange();
+      document.execCommand("formatBlock", false, tagName);
+      captureActiveTextRange();
+      syncActiveTextToModel();
+      pushHistory();
+    }
+
+    function applyTextJustify(command) {
       const content = getActiveTextContent();
       const active = getActiveItem();
       if (!content || !isEditMode || !active || active.locked) return;
@@ -1102,7 +1136,9 @@
     }
 
     function applyAnimationToBox(animationName, speed) {
-      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && item.type === "text" && !item.locked);
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && (item.type === "text" || item.type === "image" || item.type === "video" || item.type === "audio") && !item.locked
+      );
       if (!selected.length) return;
       for (const item of selected) {
         item.animation = animationName;
@@ -1591,6 +1627,16 @@
 
       boldBtn.disabled = !isText || !isEditMode;
       italicBtn.disabled = !isText || !isEditMode;
+      h1Btn.disabled = !isText || !isEditMode;
+      h2Btn.disabled = !isText || !isEditMode;
+      h3Btn.disabled = !isText || !isEditMode;
+      paragraphBtn.disabled = !isText || !isEditMode;
+      quoteBtn.disabled = !isText || !isEditMode;
+      bulletListBtn.disabled = !isText || !isEditMode;
+      numberedListBtn.disabled = !isText || !isEditMode;
+      alignLeftTextBtn.disabled = !isText || !isEditMode;
+      alignCenterTextBtn.disabled = !isText || !isEditMode;
+      alignRightTextBtn.disabled = !isText || !isEditMode;
       selectionFontSizeInput.disabled = !isText || !isEditMode;
       applySelectionSizeBtn.disabled = !isText || !isEditMode;
       boxFontSizeInput.disabled = !hasItem || !isEditMode;
@@ -1645,12 +1691,14 @@
 
       layerDeleteBtn.disabled = !hasItem || !isEditMode;
 
+      if (active) {
+        animationSelect.value = active.animation || "none";
+        animationSpeedInput.value = String(active.animationSpeed || 6);
+      }
       if (isText) {
         boxFontSizeInput.value = String(active.fontSize || 20);
         boxColorInput.value = active.color || "#f3f3f3";
         fontFamilySelect.value = active.fontFamily || DEFAULT_FONT_FAMILY;
-        animationSelect.value = active.animation || "none";
-        animationSpeedInput.value = String(active.animationSpeed || 6);
         stretchXInput.value = String(active.textScaleX || 1);
         stretchYInput.value = String(active.textScaleY || 1);
       }
@@ -1686,6 +1734,60 @@
       }
     }
 
+    function applyTextAnimationStyles(content, item) {
+      content.style.animation = "none";
+      content.style.whiteSpace = "pre-wrap";
+      content.style.overflow = "auto";
+      content.style.filter = "none";
+      if (item.animation === "marquee-left") {
+        content.style.animation = `marqueeLeft ${item.animationSpeed || 6}s linear infinite`;
+        content.style.whiteSpace = "nowrap";
+        content.style.overflow = "hidden";
+      } else if (item.animation === "marquee-right") {
+        content.style.animation = `marqueeRight ${item.animationSpeed || 6}s linear infinite`;
+        content.style.whiteSpace = "nowrap";
+        content.style.overflow = "hidden";
+      } else if (item.animation === "pulse") {
+        content.style.animation = `pulseText ${item.animationSpeed || 2}s ease-in-out infinite`;
+      } else if (item.animation === "blink") {
+        content.style.animation = `blinkText ${item.animationSpeed || 1.2}s steps(1, end) infinite`;
+      } else if (item.animation === "float") {
+        content.style.animation = `floatText ${item.animationSpeed || 3}s ease-in-out infinite`;
+      } else if (item.animation === "wave") {
+        content.style.animation = `waveText ${item.animationSpeed || 2.2}s ease-in-out infinite`;
+      } else if (item.animation === "rainbow") {
+        content.style.animation = `rainbowText ${item.animationSpeed || 5}s linear infinite`;
+      } else if (item.animation === "glitch") {
+        content.style.animation = `glitchText ${item.animationSpeed || 0.7}s steps(1, end) infinite`;
+      } else if (item.animation === "spin") {
+        content.style.animation = `mediaSpin ${item.animationSpeed || 4}s linear infinite`;
+      } else if (item.animation === "zoom") {
+        content.style.animation = `mediaZoom ${item.animationSpeed || 2.4}s ease-in-out infinite`;
+      }
+    }
+
+    function applyMediaAnimationStyles(node, item) {
+      node.style.animation = "none";
+      node.style.filter = "none";
+      if (item.animation === "pulse") {
+        node.style.animation = `pulseText ${item.animationSpeed || 2}s ease-in-out infinite`;
+      } else if (item.animation === "blink") {
+        node.style.animation = `blinkText ${item.animationSpeed || 1.2}s steps(1, end) infinite`;
+      } else if (item.animation === "float") {
+        node.style.animation = `floatText ${item.animationSpeed || 3}s ease-in-out infinite`;
+      } else if (item.animation === "wave") {
+        node.style.animation = `waveText ${item.animationSpeed || 2.2}s ease-in-out infinite`;
+      } else if (item.animation === "rainbow") {
+        node.style.animation = `rainbowText ${item.animationSpeed || 5}s linear infinite`;
+      } else if (item.animation === "glitch") {
+        node.style.animation = `glitchText ${item.animationSpeed || 0.7}s steps(1, end) infinite`;
+      } else if (item.animation === "spin") {
+        node.style.animation = `mediaSpin ${item.animationSpeed || 4}s linear infinite`;
+      } else if (item.animation === "zoom") {
+        node.style.animation = `mediaZoom ${item.animationSpeed || 2.4}s ease-in-out infinite`;
+      }
+    }
+
 
     function renderCanvas() {
       canvas.innerHTML = "";
@@ -1703,6 +1805,7 @@
         if (isEditMode) node.classList.add("editing");
         if (isSelected(item.id)) node.classList.add("selected");
         if (item.locked) node.style.opacity = "0.72";
+        if (item.type === "text" && item.blogMode) node.classList.add("blog-window");
 
         const actions = document.createElement("div");
         actions.className = "item-actions";
@@ -1737,32 +1840,9 @@
           content.style.fontSize = `${item.fontSize || 20}px`;
           content.style.color = item.color || "#f3f3f3";
           content.style.fontFamily = item.fontFamily || DEFAULT_FONT_FAMILY;
-          content.style.animation = "none";
-          content.style.whiteSpace = "pre-wrap";
-          content.style.overflow = "auto";
           content.style.transformOrigin = "top left";
           content.style.scale = `${item.textScaleX || 1} ${item.textScaleY || 1}`;
-          if (item.animation === "marquee-left") {
-            content.style.animation = `marqueeLeft ${item.animationSpeed || 6}s linear infinite`;
-            content.style.whiteSpace = "nowrap";
-            content.style.overflow = "hidden";
-          } else if (item.animation === "marquee-right") {
-            content.style.animation = `marqueeRight ${item.animationSpeed || 6}s linear infinite`;
-            content.style.whiteSpace = "nowrap";
-            content.style.overflow = "hidden";
-          } else if (item.animation === "pulse") {
-            content.style.animation = `pulseText ${item.animationSpeed || 2}s ease-in-out infinite`;
-          } else if (item.animation === "blink") {
-            content.style.animation = `blinkText ${item.animationSpeed || 1.2}s steps(1, end) infinite`;
-          } else if (item.animation === "float") {
-            content.style.animation = `floatText ${item.animationSpeed || 3}s ease-in-out infinite`;
-          } else if (item.animation === "wave") {
-            content.style.animation = `waveText ${item.animationSpeed || 2.2}s ease-in-out infinite`;
-          } else if (item.animation === "rainbow") {
-            content.style.animation = `rainbowText ${item.animationSpeed || 5}s linear infinite`;
-          } else if (item.animation === "glitch") {
-            content.style.animation = `glitchText ${item.animationSpeed || 0.7}s steps(1, end) infinite`;
-          }
+          applyTextAnimationStyles(content, item);
           content.contentEditable = isEditMode && !item.locked ? "true" : "false";
           content.addEventListener("input", () => {
             item.text = content.innerHTML;
@@ -1804,6 +1884,9 @@
           audio.controls = true;
           audio.preload = "metadata";
           node.appendChild(audio);
+        }
+        if (item.type === "image" || item.type === "video" || item.type === "audio") {
+          applyMediaAnimationStyles(node, item);
         }
 
         if (item.linkUrl) {
@@ -2074,6 +2157,7 @@
       isEditMode = enabled;
       toggleEditBtn.textContent = enabled ? "DONE EDITING" : "SCENERY ONLY";
       addTextBtn.hidden = !enabled;
+      if (addBlogBtn) addBlogBtn.hidden = !enabled;
       addImageBtn.hidden = !enabled;
       canvasSelect.hidden = !enabled;
       if (publicCanvasSelect) publicCanvasSelect.hidden = !enabled;
@@ -2118,6 +2202,38 @@
         hidden: false,
         locked: false,
         text: "New text"
+      };
+      items.push(newItem);
+      selectedItemIds = [newItem.id];
+      activeItemId = newItem.id;
+      boxFontSizeInput.value = String(newItem.fontSize);
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function addBlogItem() {
+      const newItem = {
+        id: generateId(),
+        type: "text",
+        blogMode: true,
+        name: `Blog ${items.length + 1}`,
+        x: 72 + (items.length * 14),
+        y: 72 + (items.length * 14),
+        w: 620,
+        h: 420,
+        fontSize: 18,
+        color: "#f3f3f3",
+        fontFamily: DEFAULT_FONT_FAMILY,
+        animation: "none",
+        animationSpeed: 6,
+        textScaleX: 1,
+        textScaleY: 1,
+        linkUrl: "",
+        linkTarget: "_blank",
+        linkDisplay: "default",
+        hidden: false,
+        locked: false,
+        text: "<h1>Blog Title</h1><p>Start writing here. Use H1/H2/H3, lists, and quote tools.</p><h2>Section Heading</h2><p>Add body text for your article.</p>"
       };
       items.push(newItem);
       selectedItemIds = [newItem.id];
@@ -2315,6 +2431,7 @@
     });
 
     addTextBtn.addEventListener("click", addTextItem);
+    if (addBlogBtn) addBlogBtn.addEventListener("click", addBlogItem);
     duplicateBtn.addEventListener("click", duplicateSelection);
     undoBtn.addEventListener("click", undo);
     redoBtn.addEventListener("click", redo);
@@ -2406,6 +2523,46 @@
 
     italicBtn.addEventListener("click", () => {
       applyTextCommand("italic");
+    });
+
+    h1Btn.addEventListener("click", () => {
+      applyFormatBlock("H1");
+    });
+
+    h2Btn.addEventListener("click", () => {
+      applyFormatBlock("H2");
+    });
+
+    h3Btn.addEventListener("click", () => {
+      applyFormatBlock("H3");
+    });
+
+    paragraphBtn.addEventListener("click", () => {
+      applyFormatBlock("P");
+    });
+
+    quoteBtn.addEventListener("click", () => {
+      applyFormatBlock("BLOCKQUOTE");
+    });
+
+    bulletListBtn.addEventListener("click", () => {
+      applyTextCommand("insertUnorderedList");
+    });
+
+    numberedListBtn.addEventListener("click", () => {
+      applyTextCommand("insertOrderedList");
+    });
+
+    alignLeftTextBtn.addEventListener("click", () => {
+      applyTextJustify("justifyLeft");
+    });
+
+    alignCenterTextBtn.addEventListener("click", () => {
+      applyTextJustify("justifyCenter");
+    });
+
+    alignRightTextBtn.addEventListener("click", () => {
+      applyTextJustify("justifyRight");
     });
 
     applySelectionSizeBtn.addEventListener("click", () => {
