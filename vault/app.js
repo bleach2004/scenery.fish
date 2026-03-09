@@ -77,6 +77,7 @@
     const linkTargetSelect = document.getElementById("linkTargetSelect");
     const applyTextLinkBtn = document.getElementById("applyTextLinkBtn");
     const removeTextLinkBtn = document.getElementById("removeTextLinkBtn");
+    const attachTextBoxLinkBtn = document.getElementById("attachTextBoxLinkBtn");
     const attachLayerLinkBtn = document.getElementById("attachLayerLinkBtn");
     const clearLayerLinkBtn = document.getElementById("clearLayerLinkBtn");
     const animationSelect = document.getElementById("animationSelect");
@@ -1158,6 +1159,25 @@
       renderCanvas();
     }
 
+    function attachLinkToTextSelection(urlRaw, targetMode, displayMode) {
+      const url = normalizeUrl(urlRaw);
+      if (!url) {
+        alert("Enter a valid link URL.");
+        return;
+      }
+      const selected = getSelectionIds()
+        .map((id) => getItemById(id))
+        .filter((item) => item && item.type === "text" && !item.locked);
+      if (!selected.length) return;
+      for (const item of selected) {
+        item.linkUrl = url;
+        item.linkTarget = targetMode === "_self" ? "_self" : "_blank";
+        item.linkDisplay = ["default", "plain", "button", "highlight"].includes(displayMode) ? displayMode : "default";
+      }
+      persistAll(true);
+      renderCanvas();
+    }
+
     function clearLinkFromSelection() {
       const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
       if (!selected.length) return;
@@ -1658,6 +1678,9 @@
       const selectedMediaItems = getSelectionIds()
         .map((id) => getItemById(id))
         .filter((item) => item && (item.type === "image" || item.type === "video") && !item.locked);
+      const hasTextSelection = getSelectionIds()
+        .map((id) => getItemById(id))
+        .some((item) => item && item.type === "text" && !item.locked);
       const hasMediaSelection = selectedMediaItems.length > 0;
 
       boldBtn.disabled = !isText || !isEditMode;
@@ -1689,6 +1712,7 @@
       linkTargetSelect.disabled = !isEditMode;
       applyTextLinkBtn.disabled = !isText || !isEditMode;
       removeTextLinkBtn.disabled = !isText || !isEditMode;
+      if (attachTextBoxLinkBtn) attachTextBoxLinkBtn.disabled = !hasTextSelection || !isEditMode;
       attachLayerLinkBtn.disabled = !hasItem || !isEditMode;
       clearLayerLinkBtn.disabled = !hasItem || !isEditMode;
       animationSelect.disabled = !hasItem || !isEditMode;
@@ -1879,6 +1903,15 @@
           content.style.fontFamily = item.fontFamily || DEFAULT_FONT_FAMILY;
           content.style.transformOrigin = "top left";
           content.style.scale = `${item.textScaleX || 1} ${item.textScaleY || 1}`;
+          if (!isEditMode && item.linkUrl) {
+            content.style.textDecoration = "underline";
+            content.style.cursor = "pointer";
+            content.style.userSelect = "none";
+          } else {
+            content.style.textDecoration = "";
+            content.style.cursor = "";
+            content.style.userSelect = "";
+          }
           applyTextAnimationStyles(content, item);
           content.contentEditable = isEditMode && !item.locked ? "true" : "false";
           content.addEventListener("input", () => {
@@ -2928,6 +2961,12 @@
     attachLayerLinkBtn.addEventListener("click", () => {
       attachLinkToSelection(linkUrlInput.value, linkTargetSelect.value, linkDisplaySelect.value);
     });
+
+    if (attachTextBoxLinkBtn) {
+      attachTextBoxLinkBtn.addEventListener("click", () => {
+        attachLinkToTextSelection(linkUrlInput.value, linkTargetSelect.value, linkDisplaySelect.value);
+      });
+    }
 
     clearLayerLinkBtn.addEventListener("click", () => {
       clearLinkFromSelection();
