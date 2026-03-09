@@ -1373,6 +1373,29 @@
       }
     }
 
+    /* /vault route where toolbar is fully hidden */
+    body.vault-no-toolbar {
+      background: #000 !important;
+    }
+
+    body.vault-no-toolbar .shell {
+      padding-top: 0 !important;
+      padding-bottom: 0 !important;
+      background: #000 !important;
+    }
+
+    body.vault-no-toolbar .canvas-wrap {
+      min-height: 100vh !important;
+      background: #000 !important;
+      background-image: none !important;
+      border-right: 0 !important;
+    }
+
+    body.vault-no-toolbar .canvas {
+      min-height: 100vh !important;
+      background: #000 !important;
+    }
+
     /* Photoshop-like ordering + creative controls */
     .toolbar {
       display: flex;

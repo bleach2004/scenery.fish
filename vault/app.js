@@ -185,6 +185,7 @@
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
+      document.body.classList.add("vault-no-toolbar");
       toolbar.setAttribute("hidden", "");
       toolbar.style.setProperty("display", "none", "important");
       toolbar.style.setProperty("visibility", "hidden", "important");
