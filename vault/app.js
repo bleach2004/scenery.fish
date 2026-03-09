@@ -3369,12 +3369,12 @@
     function unlock() {
       isUnlocked = true;
       if (gate) gate.style.display = "none";
-      toolbar.removeAttribute("hidden");
       sidePanel.removeAttribute("hidden");
       portfolio.removeAttribute("hidden");
       portfolio.classList.remove("locked");
       portfolio.removeAttribute("aria-hidden");
-      toolbar.style.display = "flex";
+      toolbar.setAttribute("hidden", "");
+      toolbar.style.display = "none";
       sidePanel.style.display = "none";
       loadCanvasIntoState(workspace.activeCanvasId, true);
       resetHistoryState();
