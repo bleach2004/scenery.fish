@@ -18,6 +18,7 @@
       cursorData: "",
       textStretchDrag: false,
       dockVisible: true,
+      topbarAutoHide: false,
       sceneTransition: "none",
       sceneTransitionSpeed: 0.5,
       stylePresets: []
@@ -37,6 +38,7 @@
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
     const toggleDockBtn = document.getElementById("toggleDockBtn");
+    const toggleTopbarBtn = document.getElementById("toggleTopbarBtn");
     const saveBtn = document.getElementById("saveBtn");
     const publishBtn = document.getElementById("publishBtn");
     const resetBtn = document.getElementById("resetBtn");
@@ -184,6 +186,7 @@
     let isPublishingGithub = false;
     let lastVerifiedEditPassword = "";
     let revealObserver = null;
+    let topbarPeekActive = false;
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
@@ -323,6 +326,7 @@
         cursorData: typeof next.cursorData === "string" ? next.cursorData : "",
         textStretchDrag: Boolean(next.textStretchDrag),
         dockVisible: typeof next.dockVisible === "boolean" ? next.dockVisible : true,
+        topbarAutoHide: typeof next.topbarAutoHide === "boolean" ? next.topbarAutoHide : false,
         sceneTransition: ["none", "fade", "slide-left", "slide-right", "zoom"].includes(next.sceneTransition)
           ? next.sceneTransition
           : "none",
@@ -357,6 +361,7 @@
           cursorData: typeof parsed.cursorData === "string" ? parsed.cursorData : fallback.cursorData,
           textStretchDrag: typeof parsed.textStretchDrag === "boolean" ? parsed.textStretchDrag : fallback.textStretchDrag,
           dockVisible: typeof parsed.dockVisible === "boolean" ? parsed.dockVisible : fallback.dockVisible,
+          topbarAutoHide: typeof parsed.topbarAutoHide === "boolean" ? parsed.topbarAutoHide : fallback.topbarAutoHide,
           sceneTransition: typeof parsed.sceneTransition === "string" ? parsed.sceneTransition : fallback.sceneTransition,
           sceneTransitionSpeed: typeof parsed.sceneTransitionSpeed === "number"
             ? parsed.sceneTransitionSpeed
@@ -608,6 +613,21 @@
       document.body.classList.toggle("vault-unlocked", isUnlocked);
       document.body.classList.toggle("vault-edit-mode", isUnlocked && isEditMode);
       document.body.classList.toggle("vault-dock-open", isUnlocked && dockVisible);
+      const topbarAutoHideEnabled =
+        isUnlocked &&
+        isEditMode &&
+        Boolean(settings.topbarAutoHide) &&
+        !document.body.classList.contains("vault-no-toolbar");
+      if (!topbarAutoHideEnabled) topbarPeekActive = false;
+      document.body.classList.toggle("vault-topbar-autohide", topbarAutoHideEnabled);
+      document.body.classList.toggle("vault-topbar-peek", topbarAutoHideEnabled && topbarPeekActive);
+    }
+
+    function setTopbarPeekActive(next) {
+      const normalized = Boolean(next);
+      if (topbarPeekActive === normalized) return;
+      topbarPeekActive = normalized;
+      updateLayoutClasses();
     }
 
     function updateDockVisibility() {
@@ -615,6 +635,10 @@
       sidePanel.style.display = isEditMode && dockVisible ? "flex" : "none";
       toggleDockBtn.textContent = dockVisible ? "Hide Dock" : "Show Dock";
       toggleDockBtn.hidden = !isEditMode;
+      if (toggleTopbarBtn) {
+        toggleTopbarBtn.hidden = !isEditMode;
+        toggleTopbarBtn.textContent = settings.topbarAutoHide ? "Pin Topbar" : "Hide Topbar";
+      }
       updateLayoutClasses();
       ensureCanvasHeight();
     }
@@ -3043,6 +3067,7 @@
       if (quickRandomizeBtn) quickRandomizeBtn.hidden = !enabled;
       if (quickInspireBtn) quickInspireBtn.hidden = !enabled;
       toggleDockBtn.hidden = !enabled;
+      if (toggleTopbarBtn) toggleTopbarBtn.hidden = !enabled;
       saveBtn.hidden = !enabled;
       publishBtn.hidden = !enabled;
       resetBtn.hidden = !enabled;
@@ -3472,6 +3497,34 @@
       settings.dockVisible = !settings.dockVisible;
       updateDockVisibility();
       persistAll(true);
+    });
+    if (toggleTopbarBtn) {
+      toggleTopbarBtn.addEventListener("click", () => {
+        settings.topbarAutoHide = !settings.topbarAutoHide;
+        if (settings.topbarAutoHide) {
+          setTopbarPeekActive(true);
+        } else {
+          setTopbarPeekActive(false);
+        }
+        updateDockVisibility();
+        persistAll(true);
+      });
+    }
+
+    window.addEventListener("mousemove", (event) => {
+      const topbarAutoHideEnabled =
+        isUnlocked &&
+        isEditMode &&
+        Boolean(settings.topbarAutoHide) &&
+        !document.body.classList.contains("vault-no-toolbar");
+      if (!topbarAutoHideEnabled) return;
+      const target = event.target;
+      const overToolbar = Boolean(target && target.closest && target.closest("#toolbar"));
+      const nearTop = event.clientY <= 18;
+      setTopbarPeekActive(nearTop || overToolbar);
+    });
+    window.addEventListener("blur", () => {
+      setTopbarPeekActive(false);
     });
 
     canvasSelect.addEventListener("change", () => {

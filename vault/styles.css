@@ -127,7 +127,7 @@
     }
 
     .canvas-item.image {
-      overflow: hidden;
+      overflow: visible;
       background: transparent;
     }
 
@@ -136,7 +136,7 @@
     }
 
     .canvas-item.video {
-      overflow: hidden;
+      overflow: visible;
       background: #000;
     }
 
@@ -1294,6 +1294,9 @@
       min-height: var(--toolbar-height);
       padding: 0.5rem 0.75rem;
       z-index: 1400;
+      transition: transform 160ms ease, opacity 140ms ease;
+      transform: translateY(0);
+      opacity: 1;
     }
 
     .side-panel {
@@ -1316,7 +1319,7 @@
 
     body.vault-unlocked .shell {
       padding-top: var(--toolbar-height);
-      transition: padding-right 140ms ease;
+      transition: padding-right 140ms ease, padding-top 140ms ease;
     }
 
     body.vault-unlocked.vault-dock-open .shell {
@@ -1337,6 +1340,35 @@
 
     .panel-scroll {
       max-height: calc(100vh - var(--toolbar-height) - 4rem);
+    }
+
+    body.vault-topbar-autohide .toolbar {
+      transform: translateY(calc(-100% + 10px));
+      opacity: 0.32;
+    }
+
+    body.vault-topbar-autohide.vault-topbar-peek .toolbar,
+    body.vault-topbar-autohide .toolbar:hover,
+    body.vault-topbar-autohide .toolbar:focus-within {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    body.vault-topbar-autohide .shell {
+      padding-top: 0;
+    }
+
+    body.vault-topbar-autohide .canvas-wrap,
+    body.vault-topbar-autohide .canvas {
+      min-height: 100vh;
+    }
+
+    body.vault-topbar-autohide .side-panel {
+      top: 0;
+    }
+
+    body.vault-topbar-autohide .panel-scroll {
+      max-height: calc(100vh - 4rem);
     }
 
     @media (max-width: 1100px) {
@@ -1423,6 +1455,7 @@
     #undoBtn,
     #redoBtn { order: 5; }
     #toggleDockBtn,
+    #toggleTopbarBtn,
     #saveBtn,
     #publishBtn,
     #resetBtn,
