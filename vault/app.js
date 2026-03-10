@@ -2505,7 +2505,6 @@
 
     function applyMediaAnimationStyles(node, item) {
       node.style.animation = "none";
-      node.style.filter = "none";
       const speed = item.animationSpeed || 2;
       const stack = Array.isArray(item.mediaAnimations)
         ? item.mediaAnimations.filter((name) => typeof name === "string" && name && name !== "none")
@@ -2533,6 +2532,7 @@
         node.style.transform = `rotate(${Number(item.rotateDeg) || 0}deg)`;
         node.dataset.hoverFx = item.hoverFx || "none";
         node.style.setProperty("--hover-blur-pop", `${clamp(Number(item.hoverBlurPx) || 2, 0, 40)}px`);
+        node.style.filter = item.type === "image" && item.invertMedia ? "invert(1)" : "none";
         node.style.mixBlendMode = item.blendMode && item.blendMode !== "normal" ? item.blendMode : "normal";
         const depth = Number(item.depthZ) || 0;
         const softness = clamp(Number(item.shadowSoftness) || 18, 0, 80);
@@ -2624,7 +2624,6 @@
           image.src = item.src;
           image.alt = "Portfolio image";
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
-          image.style.filter = item.invertMedia ? "invert(1)" : "none";
           if (!isEditMode && item.hoverSwapSrc) {
             const baseSrc = item.src;
             const swapSrc = item.hoverSwapSrc;
