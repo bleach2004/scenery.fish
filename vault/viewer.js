@@ -31,6 +31,13 @@ function applyOptionalLink(node, item) {
   return link;
 }
 
+function normalizeCardExplodeLayers(item) {
+  if (!item || !Array.isArray(item.cardExplodeLayers)) return [];
+  return item.cardExplodeLayers
+    .filter((src) => typeof src === "string" && src.trim())
+    .slice(0, 6);
+}
+
 function renderItem(item, canvas) {
   const type = typeof item.type === "string" ? item.type : "";
   const wrapper = document.createElement("div");
@@ -38,12 +45,42 @@ function renderItem(item, canvas) {
   applyBoxStyle(wrapper, item);
 
   if (type === "image") {
-    const img = document.createElement("img");
-    img.alt = item.name || "";
-    img.src = item.src || "";
-    img.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
-    img.style.filter = item.invertMedia ? "invert(1)" : "none";
-    wrapper.appendChild(img);
+    const layers = normalizeCardExplodeLayers(item);
+    const hasCardExplode = layers.length === 6;
+    const primarySrc = typeof item.src === "string" && item.src.trim()
+      ? item.src
+      : (layers[0] || "");
+    if (hasCardExplode) {
+      wrapper.classList.add("card-explode");
+      const scene = document.createElement("div");
+      scene.className = "card-explode-scene";
+
+      const main = document.createElement("img");
+      main.alt = item.name || "";
+      main.src = primarySrc;
+      main.className = "card-explode-main";
+      main.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+      scene.appendChild(main);
+
+      layers.forEach((src, index) => {
+        const layer = document.createElement("img");
+        layer.alt = "";
+        layer.src = src;
+        layer.className = `card-explode-layer card-explode-layer-${index + 1}`;
+        layer.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+        scene.appendChild(layer);
+      });
+
+      wrapper.style.filter = item.invertMedia ? "invert(1)" : "none";
+      wrapper.appendChild(scene);
+    } else {
+      const img = document.createElement("img");
+      img.alt = item.name || "";
+      img.src = primarySrc;
+      img.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+      img.style.filter = item.invertMedia ? "invert(1)" : "none";
+      wrapper.appendChild(img);
+    }
   } else if (type === "video") {
     const video = document.createElement("video");
     video.src = item.src || "";
@@ -71,8 +108,26 @@ function renderItem(item, canvas) {
   canvas.appendChild(node);
 }
 
+function toWorkspaceShape(payload) {
+  let next = payload;
+  for (let i = 0; i < 4; i += 1) {
+    if (!next || typeof next !== "object") return null;
+    if (Array.isArray(next.canvases)) return next;
+    if (next.workspace && typeof next.workspace === "object") {
+      next = next.workspace;
+      continue;
+    }
+    if (next.payload && typeof next.payload === "object") {
+      next = next.payload;
+      continue;
+    }
+    return null;
+  }
+  return null;
+}
+
 function pickCanvas(payload) {
-  const workspace = payload && payload.workspace ? payload.workspace : payload;
+  const workspace = toWorkspaceShape(payload);
   if (!workspace || !Array.isArray(workspace.canvases)) return null;
   const id = workspace.publicCanvasId || workspace.activeCanvasId;
   return workspace.canvases.find((canvas) => canvas.id === id) || workspace.canvases[0] || null;
@@ -116,28 +171,30 @@ async function loadAndRender() {
   const canvas = document.getElementById("canvas");
   canvas.innerHTML = "";
 
-  try {
-    let response = await fetch(`${WORKSPACE_API_URL}?t=${Date.now()}`, { cache: "no-store" });
-    if (!response.ok) {
-      response = await fetch(`${WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
-    }
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const payload = await response.json();
-    const selected = pickCanvas(payload && payload.payload ? payload.payload : payload);
-    if (!selected) return;
+  const sources = [`${WORKSPACE_API_URL}?t=${Date.now()}`, `${WORKSPACE_URL}?t=${Date.now()}`];
+  for (const source of sources) {
+    try {
+      const response = await fetch(source, { cache: "no-store" });
+      if (!response.ok) continue;
+      const payload = await response.json();
+      const selected = pickCanvas(payload);
+      if (!selected) continue;
 
-    const settings = selected.settings || {};
-    if (typeof settings.canvasBg === "string" && settings.canvasBg) {
-      document.querySelector(".canvas-wrap").style.background = settings.canvasBg;
-    }
+      const settings = selected.settings || {};
+      if (typeof settings.canvasBg === "string" && settings.canvasBg) {
+        document.querySelector(".canvas-wrap").style.background = settings.canvasBg;
+      }
 
-    const items = Array.isArray(selected.items) ? selected.items : [];
-    currentItems = items;
-    for (const item of items) renderItem(item, canvas);
-    applyResponsiveLayout();
-  } catch (error) {
-    console.error("Vault viewer failed to load workspace.json", error);
+      const items = Array.isArray(selected.items) ? selected.items : [];
+      currentItems = items;
+      for (const item of items) renderItem(item, canvas);
+      applyResponsiveLayout();
+      return;
+    } catch (error) {
+      console.error("Vault viewer source failed", source, error);
+    }
   }
+  console.error("Vault viewer failed to load any workspace source");
 }
 
 async function postJson(url, payload) {
