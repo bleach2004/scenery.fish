@@ -1023,16 +1023,15 @@
       }
 
       const viewportWidth = availableWidth;
-      let fitScale = viewportWidth / boundsWidth;
-      fitScale = clamp(fitScale, 0.25, 1.35);
+      const viewportHeight = Math.max(260, window.innerHeight - 16);
 
-      const offsetX = Math.max(0, Math.round((viewportWidth - (boundsWidth * fitScale)) / 2));
-
-      canvas.style.width = `${boundsWidth}px`;
+      // Published/login view: keep 1:1 placement and do not auto-fit/translate horizontally.
+      // This preserves intentional offscreen positioning while avoiding horizontal scroll.
+      canvas.style.width = `${viewportWidth}px`;
       canvas.style.height = `${boundsHeight}px`;
       canvas.style.transformOrigin = "top left";
-      canvas.style.transform = `translate(${offsetX}px, 0px) scale(${fitScale})`;
-      canvasWrap.style.minHeight = `${Math.ceil(boundsHeight * fitScale)}px`;
+      canvas.style.transform = "none";
+      canvasWrap.style.minHeight = `${Math.max(boundsHeight, viewportHeight)}px`;
     }
 
     function syncSelectionClasses() {
