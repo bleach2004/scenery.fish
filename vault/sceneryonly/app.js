@@ -152,6 +152,9 @@
     const hoverSwapInput = document.getElementById("hoverSwapInput");
     const applyHoverSwapBtn = document.getElementById("applyHoverSwapBtn");
     const clearHoverSwapBtn = document.getElementById("clearHoverSwapBtn");
+    const cardExplodeMainInput = document.getElementById("cardExplodeMainInput");
+    const cardExplodeLayersInput = document.getElementById("cardExplodeLayersInput");
+    const addCardExplodeBtn = document.getElementById("addCardExplodeBtn");
     const blendModeSelect = document.getElementById("blendModeSelect");
     const applyBlendModeBtn = document.getElementById("applyBlendModeBtn");
     const clearBlendModeBtn = document.getElementById("clearBlendModeBtn");
@@ -766,6 +769,10 @@
         if (!Number.isFinite(next.hoverBlurPx)) next.hoverBlurPx = 2;
         next.hoverBlurPx = clamp(Number(next.hoverBlurPx) || 2, 0, 40);
         if (typeof next.inspectNote !== "string") next.inspectNote = "";
+        if (!Array.isArray(next.cardExplodeLayers)) next.cardExplodeLayers = [];
+        next.cardExplodeLayers = next.cardExplodeLayers
+          .filter((src) => typeof src === "string" && src.trim())
+          .slice(0, 6);
         if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
         if (typeof next.invertMedia !== "boolean") next.invertMedia = false;
         if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
@@ -2344,6 +2351,9 @@
       if (hoverSwapInput) hoverSwapInput.disabled = !isEditMode || !hasMediaSelection;
       if (applyHoverSwapBtn) applyHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
       if (clearHoverSwapBtn) clearHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (cardExplodeMainInput) cardExplodeMainInput.disabled = !isEditMode;
+      if (cardExplodeLayersInput) cardExplodeLayersInput.disabled = !isEditMode;
+      if (addCardExplodeBtn) addCardExplodeBtn.disabled = !isEditMode;
       if (layerInspectNoteInput) layerInspectNoteInput.disabled = !isEditMode || !hasImageSelection;
       if (applyLayerInspectNoteBtn) applyLayerInspectNoteBtn.disabled = !isEditMode || !hasImageSelection;
       if (blendModeSelect) blendModeSelect.disabled = !isEditMode || !hasItem;
@@ -2630,21 +2640,49 @@
 
         if (item.type === "image") {
           autoTrimExistingPngItem(item);
-          const image = document.createElement("img");
-          image.src = item.src;
-          image.alt = "Portfolio image";
-          image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
-          if (!isEditMode && item.hoverSwapSrc) {
+          const cardExplodeLayers = Array.isArray(item.cardExplodeLayers)
+            ? item.cardExplodeLayers.filter((src) => typeof src === "string" && src.trim()).slice(0, 6)
+            : [];
+          const hasCardExplode = cardExplodeLayers.length === 6;
+          let mainImage = null;
+          if (hasCardExplode) {
+            node.classList.add("card-explode");
+            const scene = document.createElement("div");
+            scene.className = "card-explode-scene";
+            const image = document.createElement("img");
+            image.src = item.src;
+            image.alt = "Portfolio image";
+            image.className = "card-explode-main";
+            image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+            scene.appendChild(image);
+            cardExplodeLayers.forEach((layerSrc, index) => {
+              const layer = document.createElement("img");
+              layer.src = layerSrc;
+              layer.alt = "";
+              layer.className = `card-explode-layer card-explode-layer-${index + 1}`;
+              layer.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+              scene.appendChild(layer);
+            });
+            mainImage = image;
+            node.appendChild(scene);
+          } else {
+            const image = document.createElement("img");
+            image.src = item.src;
+            image.alt = "Portfolio image";
+            image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+            mainImage = image;
+            node.appendChild(image);
+          }
+          if (!hasCardExplode && !isEditMode && item.hoverSwapSrc && mainImage) {
             const baseSrc = item.src;
             const swapSrc = item.hoverSwapSrc;
             node.addEventListener("pointerenter", () => {
-              image.src = swapSrc;
+              mainImage.src = swapSrc;
             });
             node.addEventListener("pointerleave", () => {
-              image.src = baseSrc;
+              mainImage.src = baseSrc;
             });
           }
-          node.appendChild(image);
         } else if (item.type === "video") {
           const video = document.createElement("video");
           video.src = item.src;
@@ -3487,6 +3525,50 @@
       renderCanvas();
     }
 
+    async function addCardExplodeItem(mainFile, layerFiles, clientX = null, clientY = null) {
+      if (!mainFile) {
+        alert("Pick a primary image first.");
+        return;
+      }
+      const layers = Array.from(layerFiles || []);
+      if (layers.length !== 6) {
+        alert("Pick exactly 6 layer images.");
+        return;
+      }
+      try {
+        const mainDataUrl = await readFileAsDataUrl(mainFile);
+        const preparedMain = await prepareImageForImport(mainDataUrl);
+        const layerSources = [];
+        for (const layerFile of layers) {
+          const layerDataUrl = await readFileAsDataUrl(layerFile);
+          const preparedLayer = await prepareImageForImport(layerDataUrl);
+          layerSources.push(preparedLayer.dataUrl);
+        }
+        const base = pointToCanvas(
+          Number.isFinite(clientX) ? clientX : (window.innerWidth * 0.5),
+          Number.isFinite(clientY) ? clientY : (window.innerHeight * 0.3)
+        );
+        const item = addMediaItem(
+          preparedMain.dataUrl,
+          "image",
+          (mainFile.name || "Card Explode").replace(/\.[^/.]+$/, ""),
+          base.x,
+          base.y,
+          true,
+          preparedMain.sizeHint
+        );
+        if (!item) return;
+        item.cardExplodeLayers = layerSources;
+        item.hoverSwapSrc = "";
+        selectedItemIds = [item.id];
+        activeItemId = item.id;
+        persistAll(true);
+        renderCanvas();
+      } catch {
+        alert("Could not build Card Explode from those images.");
+      }
+    }
+
     function addMediaItem(dataUrl, mediaType, nameHint = "", x = null, y = null, skipRender = false, sizeHint = null) {
       const type = mediaType || "image";
       let w = 300;
@@ -3518,6 +3600,7 @@
         hoverBlurPx: 2,
         hoverSwapSrc: "",
         inspectNote: "",
+        cardExplodeLayers: [],
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3705,6 +3788,18 @@
       await importFilesToCanvas([file], window.innerWidth * 0.5, window.innerHeight * 0.3);
       imageInput.value = "";
     });
+    if (addCardExplodeBtn) {
+      addCardExplodeBtn.addEventListener("click", async () => {
+        if (!isEditMode) return;
+        const mainFile = cardExplodeMainInput && cardExplodeMainInput.files && cardExplodeMainInput.files[0];
+        const layerFiles = cardExplodeLayersInput && cardExplodeLayersInput.files
+          ? Array.from(cardExplodeLayersInput.files)
+          : [];
+        await addCardExplodeItem(mainFile, layerFiles);
+        if (cardExplodeMainInput) cardExplodeMainInput.value = "";
+        if (cardExplodeLayersInput) cardExplodeLayersInput.value = "";
+      });
+    }
 
     saveBtn.addEventListener("click", () => {
       const saved = persistAll(true);

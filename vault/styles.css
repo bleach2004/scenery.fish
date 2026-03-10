@@ -363,6 +363,56 @@
       will-change: width, height, transform;
     }
 
+    .canvas-item.image.card-explode {
+      perspective: 800px;
+      overflow: visible;
+    }
+
+    .card-explode-scene {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .card-explode-main {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      transform: translateZ(0);
+      transition: transform 0.6s ease, opacity 0.6s ease;
+    }
+
+    .card-explode-layer {
+      position: absolute;
+      left: 20%;
+      top: 20%;
+      width: 60%;
+      height: 60%;
+      object-fit: contain;
+      opacity: 0;
+      transform: translateZ(0);
+      transition: transform 0.6s ease, opacity 0.6s ease;
+    }
+
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-scene {
+      transform: rotateY(-15deg) rotateX(8deg);
+    }
+
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-main {
+      transform: translateZ(-140px);
+    }
+
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-1 { transform: translateZ(50px); opacity: 1; }
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-2 { transform: translateZ(70px); opacity: 1; }
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-3 { transform: translateZ(90px); opacity: 1; }
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-4 { transform: translateZ(110px); opacity: 1; }
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-5 { transform: translateZ(120px); opacity: 1; }
+    .canvas-item.image.card-explode:not(.editing):hover .card-explode-layer-6 { transform: translateZ(130px); opacity: 1; }
+
     .canvas-item.video video {
       width: 100%;
       height: 100%;
@@ -1610,6 +1660,14 @@
     }
 
     #hoverSwapInput[type="file"] {
+      width: auto;
+      max-width: 180px;
+      font-size: 0.72rem;
+      padding: 0.2rem;
+    }
+
+    #cardExplodeMainInput[type="file"],
+    #cardExplodeLayersInput[type="file"] {
       width: auto;
       max-width: 180px;
       font-size: 0.72rem;
