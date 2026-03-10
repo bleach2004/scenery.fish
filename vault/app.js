@@ -2691,11 +2691,13 @@
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
           if (!isEditMode && document.body.classList.contains("vault-no-toolbar")) {
             image.classList.add("inspectable");
-            image.addEventListener("click", (event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              openImageInspect(item.src, item.name || "Image");
-            });
+            if (!item.linkUrl) {
+              node.addEventListener("click", (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                openImageInspect(item.src, item.name || "Image");
+              });
+            }
           }
           if (!isEditMode && item.hoverSwapSrc) {
             const baseSrc = item.src;
