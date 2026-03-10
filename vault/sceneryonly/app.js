@@ -121,6 +121,8 @@
     const exportJsonBtn = document.getElementById("exportJsonBtn");
     const importJsonBtn = document.getElementById("importJsonBtn");
     const layerList = document.getElementById("layerList");
+    const layerInspectNoteInput = document.getElementById("layerInspectNoteInput");
+    const applyLayerInspectNoteBtn = document.getElementById("applyLayerInspectNoteBtn");
     const renameLayerBtn = document.getElementById("renameLayerBtn");
     const toggleLockBtn = document.getElementById("toggleLockBtn");
     const toggleVisibleBtn = document.getElementById("toggleVisibleBtn");
@@ -763,6 +765,7 @@
         if (typeof next.hoverSwapSrc !== "string") next.hoverSwapSrc = "";
         if (!Number.isFinite(next.hoverBlurPx)) next.hoverBlurPx = 2;
         next.hoverBlurPx = clamp(Number(next.hoverBlurPx) || 2, 0, 40);
+        if (typeof next.inspectNote !== "string") next.inspectNote = "";
         if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
         if (typeof next.invertMedia !== "boolean") next.invertMedia = false;
         if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
@@ -1732,6 +1735,16 @@
       renderCanvas();
     }
 
+    function applyInspectNoteToSelection(noteText) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && item.type === "image");
+      if (!selected.length) return;
+      const value = typeof noteText === "string" ? noteText : "";
+      for (const item of selected) item.inspectNote = value;
+      persistAll(true);
+      renderCanvas();
+    }
+
     function clearHoverSwapFromSelection() {
       const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
         item && !item.locked && item.type === "image");
@@ -2331,6 +2344,8 @@
       if (hoverSwapInput) hoverSwapInput.disabled = !isEditMode || !hasMediaSelection;
       if (applyHoverSwapBtn) applyHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
       if (clearHoverSwapBtn) clearHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (layerInspectNoteInput) layerInspectNoteInput.disabled = !isEditMode || !hasImageSelection;
+      if (applyLayerInspectNoteBtn) applyLayerInspectNoteBtn.disabled = !isEditMode || !hasImageSelection;
       if (blendModeSelect) blendModeSelect.disabled = !isEditMode || !hasItem;
       if (applyBlendModeBtn) applyBlendModeBtn.disabled = !isEditMode || !hasItem;
       if (clearBlendModeBtn) clearBlendModeBtn.disabled = !isEditMode || !hasItem;
@@ -2375,6 +2390,9 @@
           hoverBlurInput.value = String(blurPx);
           if (hoverBlurValue) hoverBlurValue.textContent = `${Math.round(blurPx)}px`;
         }
+      }
+      if (layerInspectNoteInput) {
+        layerInspectNoteInput.value = hasImageSelection ? (selectedImageItems[0].inspectNote || "") : "";
       }
       if (invertMediaToggle) {
         invertMediaToggle.checked = hasImageSelection ? Boolean(selectedImageItems[0].invertMedia) : false;
@@ -3193,6 +3211,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3235,6 +3254,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3497,6 +3517,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3944,6 +3965,11 @@
       });
     }
     if (clearHoverSwapBtn) clearHoverSwapBtn.addEventListener("click", clearHoverSwapFromSelection);
+    if (applyLayerInspectNoteBtn) {
+      applyLayerInspectNoteBtn.addEventListener("click", () => {
+        applyInspectNoteToSelection((layerInspectNoteInput && layerInspectNoteInput.value) || "");
+      });
+    }
     if (applyBlendModeBtn) {
       applyBlendModeBtn.addEventListener("click", () => {
         applyBlendModeToSelection((blendModeSelect && blendModeSelect.value) || "normal");

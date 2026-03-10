@@ -121,6 +121,8 @@
     const exportJsonBtn = document.getElementById("exportJsonBtn");
     const importJsonBtn = document.getElementById("importJsonBtn");
     const layerList = document.getElementById("layerList");
+    const layerInspectNoteInput = document.getElementById("layerInspectNoteInput");
+    const applyLayerInspectNoteBtn = document.getElementById("applyLayerInspectNoteBtn");
     const renameLayerBtn = document.getElementById("renameLayerBtn");
     const toggleLockBtn = document.getElementById("toggleLockBtn");
     const toggleVisibleBtn = document.getElementById("toggleVisibleBtn");
@@ -193,6 +195,7 @@
     let imageInspectOverlay = null;
     let imageInspectImg = null;
     let imageInspectTitle = null;
+    let imageInspectNoteEl = null;
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
@@ -235,6 +238,10 @@
       caption.className = "image-inspect-caption";
       caption.textContent = "";
 
+      const note = document.createElement("aside");
+      note.className = "image-inspect-note";
+      note.hidden = true;
+
       closeBtn.addEventListener("click", () => closeImageInspect());
       overlay.addEventListener("click", (event) => {
         if (event.target === overlay) closeImageInspect();
@@ -244,21 +251,28 @@
       frame.appendChild(closeBtn);
       frame.appendChild(img);
       frame.appendChild(caption);
+      frame.appendChild(note);
       overlay.appendChild(frame);
       document.body.appendChild(overlay);
 
       imageInspectOverlay = overlay;
       imageInspectImg = img;
       imageInspectTitle = caption;
+      imageInspectNoteEl = note;
       return overlay;
     }
 
-    function openImageInspect(src, title = "") {
+    function openImageInspect(src, title = "", noteText = "") {
       if (!src) return;
       const overlay = ensureImageInspectOverlay();
       imageInspectImg.src = src;
       imageInspectImg.alt = title || "Image preview";
       imageInspectTitle.textContent = title || "";
+      if (imageInspectNoteEl) {
+        const trimmed = typeof noteText === "string" ? noteText.trim() : "";
+        imageInspectNoteEl.hidden = !trimmed;
+        imageInspectNoteEl.textContent = trimmed;
+      }
       overlay.setAttribute("aria-hidden", "false");
       document.body.classList.add("vault-image-inspect-open");
     }
@@ -272,6 +286,10 @@
         imageInspectImg.alt = "";
       }
       if (imageInspectTitle) imageInspectTitle.textContent = "";
+      if (imageInspectNoteEl) {
+        imageInspectNoteEl.hidden = true;
+        imageInspectNoteEl.textContent = "";
+      }
     }
 
     function estimateJsonBytes(value) {
@@ -837,6 +855,7 @@
         if (typeof next.hoverSwapSrc !== "string") next.hoverSwapSrc = "";
         if (!Number.isFinite(next.hoverBlurPx)) next.hoverBlurPx = 2;
         next.hoverBlurPx = clamp(Number(next.hoverBlurPx) || 2, 0, 40);
+        if (typeof next.inspectNote !== "string") next.inspectNote = "";
         if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
         if (typeof next.invertMedia !== "boolean") next.invertMedia = false;
         if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
@@ -1805,6 +1824,16 @@
       renderCanvas();
     }
 
+    function applyInspectNoteToSelection(noteText) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && item.type === "image");
+      if (!selected.length) return;
+      const value = typeof noteText === "string" ? noteText : "";
+      for (const item of selected) item.inspectNote = value;
+      persistAll(true);
+      renderCanvas();
+    }
+
     function clearHoverSwapFromSelection() {
       const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
         item && !item.locked && item.type === "image");
@@ -2404,6 +2433,8 @@
       if (hoverSwapInput) hoverSwapInput.disabled = !isEditMode || !hasMediaSelection;
       if (applyHoverSwapBtn) applyHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
       if (clearHoverSwapBtn) clearHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (layerInspectNoteInput) layerInspectNoteInput.disabled = !isEditMode || !hasImageSelection;
+      if (applyLayerInspectNoteBtn) applyLayerInspectNoteBtn.disabled = !isEditMode || !hasImageSelection;
       if (blendModeSelect) blendModeSelect.disabled = !isEditMode || !hasItem;
       if (applyBlendModeBtn) applyBlendModeBtn.disabled = !isEditMode || !hasItem;
       if (clearBlendModeBtn) clearBlendModeBtn.disabled = !isEditMode || !hasItem;
@@ -2448,6 +2479,9 @@
           hoverBlurInput.value = String(blurPx);
           if (hoverBlurValue) hoverBlurValue.textContent = `${Math.round(blurPx)}px`;
         }
+      }
+      if (layerInspectNoteInput) {
+        layerInspectNoteInput.value = hasImageSelection ? (selectedImageItems[0].inspectNote || "") : "";
       }
       if (invertMediaToggle) {
         invertMediaToggle.checked = hasImageSelection ? Boolean(selectedImageItems[0].invertMedia) : false;
@@ -2708,7 +2742,7 @@
                 window.open(url, "_blank", "noopener,noreferrer");
                 return;
               }
-              openImageInspect(item.src, item.name || "Image");
+              openImageInspect(item.src, item.name || "Image", item.inspectNote || "");
             });
             node.appendChild(hitbox);
           }
@@ -3218,6 +3252,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3260,6 +3295,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3522,6 +3558,7 @@
         hoverFx: "none",
         hoverBlurPx: 2,
         hoverSwapSrc: "",
+        inspectNote: "",
         invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
@@ -3958,6 +3995,11 @@
       });
     }
     if (clearHoverSwapBtn) clearHoverSwapBtn.addEventListener("click", clearHoverSwapFromSelection);
+    if (applyLayerInspectNoteBtn) {
+      applyLayerInspectNoteBtn.addEventListener("click", () => {
+        applyInspectNoteToSelection((layerInspectNoteInput && layerInspectNoteInput.value) || "");
+      });
+    }
     if (applyBlendModeBtn) {
       applyBlendModeBtn.addEventListener("click", () => {
         applyBlendModeToSelection((blendModeSelect && blendModeSelect.value) || "normal");

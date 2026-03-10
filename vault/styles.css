@@ -420,11 +420,12 @@
     .image-inspect-frame {
       position: relative;
       margin: 0;
-      max-width: min(94vw, 1600px);
+      max-width: min(94vw, 1680px);
       max-height: 90vh;
       display: grid;
-      gap: 0.5rem;
-      justify-items: center;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+      gap: 0.8rem;
+      align-items: start;
     }
 
     .image-inspect-img {
@@ -436,13 +437,37 @@
       border: 1px solid rgba(255, 255, 255, 0.25);
       box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
       background: #000;
+      grid-column: 1;
+      justify-self: center;
     }
 
     .image-inspect-caption {
       color: #e6e6e6;
       font-size: 0.88rem;
-      text-align: center;
+      text-align: left;
       min-height: 1.1rem;
+      grid-column: 1;
+      justify-self: stretch;
+      padding: 0.2rem 0.1rem 0;
+    }
+
+    .image-inspect-note {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      max-height: calc(90vh - 2rem);
+      overflow: auto;
+      padding: 0.72rem 0.78rem;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.54);
+      color: #f1f1f1;
+      font-size: 0.86rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .image-inspect-note[hidden] {
+      display: none;
     }
 
     .image-inspect-close {
@@ -460,6 +485,18 @@
 
     body.vault-image-inspect-open {
       overflow: hidden;
+    }
+
+    @media (max-width: 980px) {
+      .image-inspect-frame {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .image-inspect-note {
+        grid-column: 1;
+        grid-row: auto;
+        max-height: 28vh;
+      }
     }
 
     .canvas-item.selected.editing:not(.image) {
@@ -749,6 +786,18 @@
       border-radius: 6px;
       padding: 0.38rem 0.42rem;
       font-size: 0.84rem;
+    }
+
+    .panel-row textarea {
+      width: 100%;
+      min-height: 3.1rem;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      background: #000;
+      color: #fff;
+      border-radius: 6px;
+      padding: 0.38rem 0.42rem;
+      font-size: 0.84rem;
+      resize: vertical;
     }
 
     .panel-row input[type="text"] {
@@ -1206,7 +1255,8 @@
     }
 
     .panel-row input,
-    .panel-row select {
+    .panel-row select,
+    .panel-row textarea {
       border: 1px solid rgba(114, 114, 114, 0.58);
       background: #1c1c1c;
       color: #e0e0e0;
