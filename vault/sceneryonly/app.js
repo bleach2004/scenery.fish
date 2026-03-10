@@ -93,6 +93,8 @@
     const mediaFitSelect = document.getElementById("mediaFitSelect");
     const applyMediaFitBtn = document.getElementById("applyMediaFitBtn");
     const toggleMediaFitBtn = document.getElementById("toggleMediaFitBtn");
+    const invertMediaToggle = document.getElementById("invertMediaToggle");
+    const applyInvertMediaBtn = document.getElementById("applyInvertMediaBtn");
     const zoomInput = document.getElementById("zoomInput");
     const zoomValue = document.getElementById("zoomValue");
     const snapToggle = document.getElementById("snapToggle");
@@ -733,6 +735,7 @@
         if (!["none", "zoom", "tilt", "lift", "gray-pop", "blur-pop"].includes(next.hoverFx)) next.hoverFx = "none";
         if (typeof next.hoverSwapSrc !== "string") next.hoverSwapSrc = "";
         if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
+        if (typeof next.invertMedia !== "boolean") next.invertMedia = false;
         if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
         if (!Number.isFinite(next.shadowSoftness)) next.shadowSoftness = 18;
         if (!["none", "fade-up", "fade-in", "zoom-in", "slide-left", "slide-right"].includes(next.scrollReveal)) {
@@ -1468,6 +1471,7 @@
         mediaAnimations: Array.isArray(item.mediaAnimations) ? [...item.mediaAnimations] : [],
         fitMode: item.fitMode,
         hoverFx: item.hoverFx,
+        invertMedia: item.invertMedia,
         blendMode: item.blendMode,
         depthZ: item.depthZ,
         shadowSoftness: item.shadowSoftness,
@@ -1487,6 +1491,7 @@
       if (item.type === "image" || item.type === "video" || item.type === "audio") {
         if (typeof snapshot.fitMode === "string") item.fitMode = snapshot.fitMode === "stretch" ? "stretch" : "contain";
         if (Array.isArray(snapshot.mediaAnimations)) item.mediaAnimations = [...snapshot.mediaAnimations];
+        if (typeof snapshot.invertMedia === "boolean") item.invertMedia = snapshot.invertMedia;
       }
       if (typeof snapshot.animation === "string") item.animation = snapshot.animation;
       if (Number.isFinite(snapshot.animationSpeed)) item.animationSpeed = clamp(snapshot.animationSpeed, 0.2, 30);
@@ -1699,6 +1704,15 @@
       const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) => item && !item.locked);
       if (!selected.length) return;
       for (const item of selected) item.blendMode = mode;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyImageInvertToSelection(enabled) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && item.type === "image");
+      if (!selected.length) return;
+      for (const item of selected) item.invertMedia = Boolean(enabled);
       persistAll(true);
       renderCanvas();
     }
@@ -2176,10 +2190,12 @@
       const selectedMediaItems = getSelectionIds()
         .map((id) => getItemById(id))
         .filter((item) => item && (item.type === "image" || item.type === "video") && !item.locked);
+      const selectedImageItems = selectedMediaItems.filter((item) => item.type === "image");
       const hasTextSelection = getSelectionIds()
         .map((id) => getItemById(id))
         .some((item) => item && item.type === "text" && !item.locked);
       const hasMediaSelection = selectedMediaItems.length > 0;
+      const hasImageSelection = selectedImageItems.length > 0;
 
       boldBtn.disabled = !isText || !isEditMode;
       italicBtn.disabled = !isText || !isEditMode;
@@ -2222,6 +2238,8 @@
       mediaFitSelect.disabled = !hasMediaSelection || !isEditMode;
       applyMediaFitBtn.disabled = !hasMediaSelection || !isEditMode;
       toggleMediaFitBtn.disabled = !hasMediaSelection || !isEditMode;
+      if (invertMediaToggle) invertMediaToggle.disabled = !hasImageSelection || !isEditMode;
+      if (applyInvertMediaBtn) applyInvertMediaBtn.disabled = !hasImageSelection || !isEditMode;
 
       zoomInput.disabled = !isEditMode;
       snapToggle.disabled = !isEditMode;
@@ -2309,6 +2327,9 @@
       }
       if (hasMediaSelection) {
         mediaFitSelect.value = selectedMediaItems[0].fitMode === "stretch" ? "stretch" : "contain";
+      }
+      if (invertMediaToggle) {
+        invertMediaToggle.checked = hasImageSelection ? Boolean(selectedImageItems[0].invertMedia) : false;
       }
       if (active) {
         if (document.activeElement !== linkUrlInput) linkUrlInput.value = active.linkUrl || "";
@@ -2541,6 +2562,7 @@
           image.src = item.src;
           image.alt = "Portfolio image";
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+          image.style.filter = item.invertMedia ? "invert(1)" : "none";
           if (!isEditMode && item.hoverSwapSrc) {
             const baseSrc = item.src;
             const swapSrc = item.hoverSwapSrc;
@@ -3043,6 +3065,7 @@
         animationSpeed: 6,
         hoverFx: "none",
         hoverSwapSrc: "",
+        invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
         shadowSoftness: 18,
@@ -3083,6 +3106,7 @@
         animationSpeed: 6,
         hoverFx: "none",
         hoverSwapSrc: "",
+        invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
         shadowSoftness: 18,
@@ -3343,6 +3367,7 @@
         mediaAnimations: [],
         hoverFx: "none",
         hoverSwapSrc: "",
+        invertMedia: false,
         blendMode: "normal",
         depthZ: 0,
         shadowSoftness: 18,
@@ -3689,6 +3714,11 @@
     toggleMediaFitBtn.addEventListener("click", () => {
       toggleMediaFitSelection();
     });
+    if (applyInvertMediaBtn) {
+      applyInvertMediaBtn.addEventListener("click", () => {
+        applyImageInvertToSelection(Boolean(invertMediaToggle && invertMediaToggle.checked));
+      });
+    }
 
     if (applySmartLayoutBtn) {
       applySmartLayoutBtn.addEventListener("click", () => {

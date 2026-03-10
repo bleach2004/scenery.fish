@@ -42,6 +42,7 @@ function renderItem(item, canvas) {
     img.alt = item.name || "";
     img.src = item.src || "";
     img.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+    img.style.filter = item.invertMedia ? "invert(1)" : "none";
     wrapper.appendChild(img);
   } else if (type === "video") {
     const video = document.createElement("video");
