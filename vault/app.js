@@ -900,8 +900,7 @@
       }
 
       const viewportWidth = availableWidth;
-      const viewportHeight = Math.max(260, window.innerHeight - 16);
-      let fitScale = Math.min(viewportWidth / boundsWidth, viewportHeight / boundsHeight);
+      let fitScale = viewportWidth / boundsWidth;
       fitScale = clamp(fitScale, 0.25, 1.35);
 
       const offsetX = Math.max(0, Math.round((viewportWidth - (boundsWidth * fitScale)) / 2));
