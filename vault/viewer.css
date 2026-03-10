@@ -17,6 +17,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Segoe UI", "Trebuchet MS", sans-serif;
+  overflow: hidden;
 }
 
 .topbar {
@@ -60,13 +61,16 @@ body {
 .canvas-wrap {
   position: relative;
   min-height: 100vh;
+  height: 100vh;
   padding-top: 3.25rem;
   background: #000;
+  overflow: hidden;
 }
 
 .canvas {
   position: relative;
   min-height: calc(100vh - 3.25rem);
+  overflow: hidden;
 }
 
 .canvas-item {

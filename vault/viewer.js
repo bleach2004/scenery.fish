@@ -139,32 +139,16 @@ function applyResponsiveLayout() {
   const topbar = document.querySelector(".topbar");
   if (!canvas || !wrap) return;
 
-  let maxRight = 0;
-  let maxBottom = 0;
-  for (const item of currentItems) {
-    if (item && item.hidden) continue;
-    const x = asNumber(item && item.x, 0);
-    const y = asNumber(item && item.y, 0);
-    const w = Math.max(1, asNumber(item && item.w, 240));
-    const h = Math.max(1, asNumber(item && item.h, 120));
-    maxRight = Math.max(maxRight, x + w + 40);
-    maxBottom = Math.max(maxBottom, y + h + 40);
-  }
-
-  const designWidth = Math.max(640, Math.round(maxRight || 640));
-  const designHeight = Math.max(420, Math.round(maxBottom || 420));
   const topbarHeight = topbar ? topbar.offsetHeight : 0;
   const viewportWidth = Math.max(320, window.innerWidth);
-  const viewportHeight = Math.max(240, window.innerHeight - topbarHeight - 12);
-  let fitScale = Math.min(viewportWidth / designWidth, viewportHeight / designHeight);
-  fitScale = Math.max(0.25, Math.min(1.35, fitScale));
-  const offsetX = Math.max(0, Math.round((viewportWidth - (designWidth * fitScale)) / 2));
+  const viewportHeight = Math.max(240, window.innerHeight - topbarHeight);
 
-  canvas.style.width = `${designWidth}px`;
-  canvas.style.height = `${designHeight}px`;
+  // Keep the published view at viewport size so offscreen placement stays offscreen.
+  canvas.style.width = `${viewportWidth}px`;
+  canvas.style.height = `${viewportHeight}px`;
   canvas.style.transformOrigin = "top left";
-  canvas.style.transform = `translate(${offsetX}px, 0px) scale(${fitScale})`;
-  wrap.style.minHeight = `${Math.ceil((designHeight * fitScale) + topbarHeight)}px`;
+  canvas.style.transform = "none";
+  wrap.style.minHeight = `${Math.ceil(viewportHeight + topbarHeight)}px`;
 }
 
 async function loadAndRender() {
