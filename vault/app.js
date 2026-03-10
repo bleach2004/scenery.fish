@@ -2692,7 +2692,6 @@
           if (!isEditMode && document.body.classList.contains("vault-no-toolbar")) {
             image.classList.add("inspectable");
             image.addEventListener("click", (event) => {
-              if (item.linkUrl) return;
               event.preventDefault();
               event.stopPropagation();
               openImageInspect(item.src, item.name || "Image");
@@ -2756,7 +2755,15 @@
               hitbox.type = "button";
               hitbox.className = "media-link-hitbox";
               hitbox.setAttribute("aria-label", "Open image link");
-              hitbox.addEventListener("click", openLayerLink);
+              hitbox.addEventListener("click", (event) => {
+                if (document.body.classList.contains("vault-no-toolbar")) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  openImageInspect(item.src, item.name || "Image");
+                  return;
+                }
+                openLayerLink(event);
+              });
               node.appendChild(hitbox);
             } else {
               node.addEventListener("click", openLayerLink);
