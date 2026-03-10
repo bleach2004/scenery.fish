@@ -115,13 +115,25 @@ async function readJson(request) {
 
 function base64EncodeUtf8(input) {
   const bytes = new TextEncoder().encode(input);
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
+  const table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const parts = [];
+  let chunk = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i];
+    const b = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const c = i + 2 < bytes.length ? bytes[i + 2] : 0;
+    const tri = (a << 16) | (b << 8) | c;
+    chunk += table[(tri >> 18) & 63];
+    chunk += table[(tri >> 12) & 63];
+    chunk += i + 1 < bytes.length ? table[(tri >> 6) & 63] : "=";
+    chunk += i + 2 < bytes.length ? table[tri & 63] : "=";
+    if (chunk.length >= 16384) {
+      parts.push(chunk);
+      chunk = "";
+    }
   }
-  return btoa(binary);
+  if (chunk) parts.push(chunk);
+  return parts.join("");
 }
 
 function base64DecodeUtf8(input) {
@@ -230,7 +242,8 @@ async function publishWorkspaceToGithub(env, message, workspace) {
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
   const requestBody = {
     message,
-    content: base64EncodeUtf8(JSON.stringify(payload, null, 2)),
+    // Compact JSON helps keep Worker CPU/memory usage under limits on large media-heavy workspaces.
+    content: base64EncodeUtf8(JSON.stringify(payload)),
     branch
   };
   if (existingSha) requestBody.sha = existingSha;
