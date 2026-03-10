@@ -93,6 +93,8 @@ function getCorsHeaders(origin) {
   };
 }
 
+const MAX_RAW_PUBLISH_BYTES = 90 * 1024 * 1024;
+
 function timingSafeStringEqual(a, b) {
   const enc = new TextEncoder();
   const ax = enc.encode(String(a || ""));
@@ -310,6 +312,13 @@ export default {
     if (url.pathname === "/api/publish/github" && request.method === "POST") {
       const contentType = String(request.headers.get("content-type") || "").toLowerCase();
       if (contentType.startsWith("text/plain")) {
+        const contentLength = Number(request.headers.get("content-length") || 0);
+        if (Number.isFinite(contentLength) && contentLength > MAX_RAW_PUBLISH_BYTES) {
+          return json({
+            ok: false,
+            error: "Publish payload is too large for this endpoint. Reduce media size and try again."
+          }, 413, cors);
+        }
         const editPassword = request.headers.get("x-vault-edit-password") || "";
         if (!timingSafeStringEqual(editPassword, env.VAULT_EDIT_PASSWORD)) {
           return json({ ok: false, error: "unauthorized" }, 401, cors);
@@ -334,6 +343,13 @@ export default {
         } catch (error) {
           return json({ ok: false, error: String(error && error.message ? error.message : error) }, 500, cors);
         }
+      }
+
+      if (contentType.includes("application/json")) {
+        return json({
+          ok: false,
+          error: "Legacy publish format blocked. Hard refresh the editor (Ctrl+F5) and publish again."
+        }, 426, cors);
       }
 
       const body = await readJson(request);
