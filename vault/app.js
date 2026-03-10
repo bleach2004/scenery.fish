@@ -2691,13 +2691,26 @@
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
           if (!isEditMode && document.body.classList.contains("vault-no-toolbar")) {
             image.classList.add("inspectable");
-            if (!item.linkUrl) {
-              node.addEventListener("click", (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                openImageInspect(item.src, item.name || "Image");
-              });
-            }
+            const hitbox = document.createElement("button");
+            hitbox.type = "button";
+            hitbox.className = "media-link-hitbox";
+            hitbox.setAttribute("aria-label", item.linkUrl ? "Open image link" : "Inspect image");
+            hitbox.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (item.linkUrl) {
+                const url = normalizeUrl(item.linkUrl);
+                if (!url) return;
+                if (item.linkTarget === "_self") {
+                  window.location.href = url;
+                  return;
+                }
+                window.open(url, "_blank", "noopener,noreferrer");
+                return;
+              }
+              openImageInspect(item.src, item.name || "Image");
+            });
+            node.appendChild(hitbox);
           }
           if (!isEditMode && item.hoverSwapSrc) {
             const baseSrc = item.src;
@@ -2753,20 +2766,14 @@
             };
             node.style.cursor = "pointer";
             if (item.type === "image") {
-              const hitbox = document.createElement("button");
-              hitbox.type = "button";
-              hitbox.className = "media-link-hitbox";
-              hitbox.setAttribute("aria-label", "Open image link");
-              hitbox.addEventListener("click", (event) => {
-                if (document.body.classList.contains("vault-no-toolbar")) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  openImageInspect(item.src, item.name || "Image");
-                  return;
-                }
-                openLayerLink(event);
-              });
-              node.appendChild(hitbox);
+              if (!document.body.classList.contains("vault-no-toolbar")) {
+                const hitbox = document.createElement("button");
+                hitbox.type = "button";
+                hitbox.className = "media-link-hitbox";
+                hitbox.setAttribute("aria-label", "Open image link");
+                hitbox.addEventListener("click", openLayerLink);
+                node.appendChild(hitbox);
+              }
             } else {
               node.addEventListener("click", openLayerLink);
             }
