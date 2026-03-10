@@ -190,6 +190,9 @@
     let lastVerifiedEditPassword = "";
     let revealObserver = null;
     let topbarPeekActive = false;
+    let imageInspectOverlay = null;
+    let imageInspectImg = null;
+    let imageInspectTitle = null;
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
@@ -207,6 +210,68 @@
 
     function delay(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function ensureImageInspectOverlay() {
+      if (imageInspectOverlay) return imageInspectOverlay;
+      const overlay = document.createElement("div");
+      overlay.className = "image-inspect-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+
+      const frame = document.createElement("figure");
+      frame.className = "image-inspect-frame";
+
+      const closeBtn = document.createElement("button");
+      closeBtn.type = "button";
+      closeBtn.className = "image-inspect-close";
+      closeBtn.setAttribute("aria-label", "Close image");
+      closeBtn.textContent = "Close";
+
+      const img = document.createElement("img");
+      img.className = "image-inspect-img";
+      img.alt = "";
+
+      const caption = document.createElement("figcaption");
+      caption.className = "image-inspect-caption";
+      caption.textContent = "";
+
+      closeBtn.addEventListener("click", () => closeImageInspect());
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closeImageInspect();
+      });
+      frame.addEventListener("click", (event) => event.stopPropagation());
+
+      frame.appendChild(closeBtn);
+      frame.appendChild(img);
+      frame.appendChild(caption);
+      overlay.appendChild(frame);
+      document.body.appendChild(overlay);
+
+      imageInspectOverlay = overlay;
+      imageInspectImg = img;
+      imageInspectTitle = caption;
+      return overlay;
+    }
+
+    function openImageInspect(src, title = "") {
+      if (!src) return;
+      const overlay = ensureImageInspectOverlay();
+      imageInspectImg.src = src;
+      imageInspectImg.alt = title || "Image preview";
+      imageInspectTitle.textContent = title || "";
+      overlay.setAttribute("aria-hidden", "false");
+      document.body.classList.add("vault-image-inspect-open");
+    }
+
+    function closeImageInspect() {
+      if (!imageInspectOverlay) return;
+      imageInspectOverlay.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("vault-image-inspect-open");
+      if (imageInspectImg) {
+        imageInspectImg.removeAttribute("src");
+        imageInspectImg.alt = "";
+      }
+      if (imageInspectTitle) imageInspectTitle.textContent = "";
     }
 
     function estimateJsonBytes(value) {
@@ -2624,6 +2689,15 @@
           image.src = item.src;
           image.alt = "Portfolio image";
           image.style.objectFit = item.fitMode === "stretch" ? "fill" : "contain";
+          if (!isEditMode && document.body.classList.contains("vault-no-toolbar")) {
+            image.classList.add("inspectable");
+            image.addEventListener("click", (event) => {
+              if (item.linkUrl) return;
+              event.preventDefault();
+              event.stopPropagation();
+              openImageInspect(item.src, item.name || "Image");
+            });
+          }
           if (!isEditMode && item.hoverSwapSrc) {
             const baseSrc = item.src;
             const swapSrc = item.hoverSwapSrc;
@@ -4021,6 +4095,15 @@
 
     document.addEventListener("selectionchange", captureActiveTextRange);
     document.addEventListener("keydown", (event) => {
+      if (
+        event.key === "Escape" &&
+        imageInspectOverlay &&
+        imageInspectOverlay.getAttribute("aria-hidden") === "false"
+      ) {
+        event.preventDefault();
+        closeImageInspect();
+        return;
+      }
       if (!isEditMode || gate.style.display !== "none") return;
       const isMeta = event.ctrlKey || event.metaKey;
       const typing = isTypingTarget(event.target);
