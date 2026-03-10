@@ -1474,12 +1474,15 @@
     /* /vault route where toolbar is fully hidden */
     body.vault-no-toolbar {
       background: #000 !important;
+      overflow-x: hidden !important;
+      overflow-y: auto !important;
     }
 
     body.vault-no-toolbar .shell {
       padding-top: 0 !important;
       padding-bottom: 0 !important;
       background: #000 !important;
+      overflow-x: hidden !important;
     }
 
     body.vault-no-toolbar .canvas-wrap {
@@ -1487,6 +1490,8 @@
       background: #000 !important;
       background-image: none !important;
       border-right: 0 !important;
+      overflow-x: hidden !important;
+      overflow-y: visible !important;
     }
 
     body.vault-no-toolbar .canvas {
