@@ -335,6 +335,27 @@
       }
     }
 
+    async function postText(url, text, options = {}) {
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 20000;
+      const headers = options.headers && typeof options.headers === "object" ? options.headers : {};
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            ...headers
+          },
+          body: String(text || ""),
+          cache: "no-store",
+          signal: controller.signal
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     async function postJsonWithRetry(url, payload, options = {}) {
       const attempts = Number.isFinite(options.attempts) ? Math.max(1, options.attempts) : 3;
       const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 20000;
@@ -355,6 +376,52 @@
         }
       }
       throw lastError || new Error("Request failed.");
+    }
+
+    async function postTextWithRetry(url, text, options = {}) {
+      const attempts = Number.isFinite(options.attempts) ? Math.max(1, options.attempts) : 3;
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(1, options.timeoutMs) : 20000;
+      const retryDelayMs = Number.isFinite(options.retryDelayMs) ? Math.max(0, options.retryDelayMs) : 800;
+      const headers = options.headers && typeof options.headers === "object" ? options.headers : {};
+      let lastError = null;
+      for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        try {
+          const response = await postText(url, text, { timeoutMs, headers });
+          if (response.status >= 500 && attempt < attempts) {
+            await delay(retryDelayMs * attempt);
+            continue;
+          }
+          return response;
+        } catch (error) {
+          lastError = error;
+          if (attempt >= attempts) throw error;
+          await delay(retryDelayMs * attempt);
+        }
+      }
+      throw lastError || new Error("Request failed.");
+    }
+
+    function base64EncodeUtf8(input) {
+      const bytes = new TextEncoder().encode(String(input || ""));
+      const table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+      const parts = [];
+      let chunk = "";
+      for (let i = 0; i < bytes.length; i += 3) {
+        const a = bytes[i];
+        const b = i + 1 < bytes.length ? bytes[i + 1] : 0;
+        const c = i + 2 < bytes.length ? bytes[i + 2] : 0;
+        const tri = (a << 16) | (b << 8) | c;
+        chunk += table[(tri >> 18) & 63];
+        chunk += table[(tri >> 12) & 63];
+        chunk += i + 1 < bytes.length ? table[(tri >> 6) & 63] : "=";
+        chunk += i + 2 < bytes.length ? table[tri & 63] : "=";
+        if (chunk.length >= 16384) {
+          parts.push(chunk);
+          chunk = "";
+        }
+      }
+      if (chunk) parts.push(chunk);
+      return parts.join("");
     }
 
     async function verifyVaultPassword(password) {
@@ -2072,22 +2139,28 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const publishPayload = {
-          editPassword: publishPassword,
-          message,
+        const publishWorkspacePayload = {
+          version: 1,
+          publishedAt: new Date().toISOString(),
           workspace
         };
-        const payloadBytes = estimateJsonBytes(publishPayload);
-        if (payloadBytes > PUBLISH_MAX_BYTES) {
+        const rawPayloadBytes = estimateJsonBytes(publishWorkspacePayload);
+        const encodedPayloadBytes = Math.ceil(rawPayloadBytes / 3) * 4;
+        if (encodedPayloadBytes > PUBLISH_MAX_BYTES) {
           throw new Error(
-            `Workspace payload is too large (${formatBytes(payloadBytes)}). ` +
+            `Workspace payload is too large (${formatBytes(encodedPayloadBytes)} encoded). ` +
             `Current publish limit is ${formatBytes(PUBLISH_MAX_BYTES)}; reduce embedded media size and try again.`
           );
         }
-        const response = await postJsonWithRetry(apiUrl("/api/publish/github"), publishPayload, {
+        const encodedPayload = base64EncodeUtf8(JSON.stringify(publishWorkspacePayload));
+        const response = await postTextWithRetry(apiUrl("/api/publish/github"), encodedPayload, {
           attempts: 3,
           timeoutMs: 45000,
-          retryDelayMs: 900
+          retryDelayMs: 900,
+          headers: {
+            "x-vault-edit-password": publishPassword,
+            "x-vault-publish-message": encodeURIComponent(message)
+          }
         });
         if (!response.ok) {
           const body = await response.text();

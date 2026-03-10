@@ -88,7 +88,7 @@ function getCorsHeaders(origin) {
   return {
     "access-control-allow-origin": origin || "*",
     "access-control-allow-methods": "GET, POST, OPTIONS",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type, x-vault-edit-password, x-vault-publish-message",
     "access-control-max-age": "86400"
   };
 }
@@ -223,6 +223,17 @@ async function readPublishedWorkspaceFromGithub(env) {
 }
 
 async function publishWorkspaceToGithub(env, message, workspace) {
+  const payload = {
+    version: 1,
+    publishedAt: new Date().toISOString(),
+    workspace
+  };
+  // Compact JSON helps keep Worker CPU/memory usage under limits on large media-heavy workspaces.
+  const encodedContent = base64EncodeUtf8(JSON.stringify(payload));
+  return publishEncodedContentToGithub(env, message, encodedContent);
+}
+
+async function publishEncodedContentToGithub(env, message, encodedContent) {
   const owner = env.GITHUB_OWNER || "bleach2004";
   const repo = env.GITHUB_REPO || "scenery.fish";
   const branch = env.GITHUB_BRANCH || "main";
@@ -232,18 +243,12 @@ async function publishWorkspaceToGithub(env, message, workspace) {
     throw new Error("Missing GITHUB_TOKEN secret.");
   }
 
-  const payload = {
-    version: 1,
-    publishedAt: new Date().toISOString(),
-    workspace
-  };
   const existingSha = await getExistingGithubFileSha(owner, repo, path, branch, token);
   const encodedPath = encodeRepoPath(path);
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}`;
   const requestBody = {
     message,
-    // Compact JSON helps keep Worker CPU/memory usage under limits on large media-heavy workspaces.
-    content: base64EncodeUtf8(JSON.stringify(payload)),
+    content: String(encodedContent || "").replace(/\s+/g, ""),
     branch
   };
   if (existingSha) requestBody.sha = existingSha;
@@ -303,6 +308,34 @@ export default {
     }
 
     if (url.pathname === "/api/publish/github" && request.method === "POST") {
+      const contentType = String(request.headers.get("content-type") || "").toLowerCase();
+      if (contentType.startsWith("text/plain")) {
+        const editPassword = request.headers.get("x-vault-edit-password") || "";
+        if (!timingSafeStringEqual(editPassword, env.VAULT_EDIT_PASSWORD)) {
+          return json({ ok: false, error: "unauthorized" }, 401, cors);
+        }
+        const rawMessage = request.headers.get("x-vault-publish-message") || "";
+        let message = "";
+        try {
+          message = decodeURIComponent(rawMessage);
+        } catch {
+          message = rawMessage;
+        }
+        if (!message.trim()) {
+          message = `Publish vault workspace ${new Date().toISOString()}`;
+        }
+        const encodedContent = (await request.text()).replace(/\s+/g, "");
+        if (!encodedContent) {
+          return json({ ok: false, error: "invalid workspace payload" }, 400, cors);
+        }
+        try {
+          const result = await publishEncodedContentToGithub(env, message.trim(), encodedContent);
+          return json({ ok: true, ...result }, 200, cors);
+        } catch (error) {
+          return json({ ok: false, error: String(error && error.message ? error.message : error) }, 500, cors);
+        }
+      }
+
       const body = await readJson(request);
       const editPassword = typeof body.editPassword === "string" ? body.editPassword : "";
       if (!timingSafeStringEqual(editPassword, env.VAULT_EDIT_PASSWORD)) {
