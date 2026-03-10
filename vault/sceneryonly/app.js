@@ -2819,9 +2819,9 @@
         (event.altKey || event.shiftKey || settings.textStretchDrag);
       const zoom = getCanvasPointerScale();
       const startItems = new Map();
-      if (mode === "move") {
-        const moveIds = isSelected(item.id) ? getSelectionIds() : [item.id];
-        for (const id of moveIds) {
+      if (mode === "move" || (mode === "resize" && !isTextScaleMode)) {
+        const transformIds = isSelected(item.id) ? getSelectionIds() : [item.id];
+        for (const id of transformIds) {
           const target = getItemById(id);
           if (!target || target.hidden || target.locked) continue;
           const targetNode = canvas.querySelector(`.canvas-item[data-id="${id}"]`);
@@ -2831,10 +2831,11 @@
             y: target.y,
             w: target.w,
             h: target.h,
+            type: target.type,
             node: targetNode
           });
         }
-        if (!startItems.size) return;
+        if (mode === "move" && !startItems.size) return;
       }
       transformState = {
         id: item.id,
@@ -2856,6 +2857,26 @@
         startItems,
         zoom
       };
+      if (mode === "resize" && !isTextScaleMode && startItems.size > 1) {
+        let left = Infinity;
+        let top = Infinity;
+        let right = -Infinity;
+        let bottom = -Infinity;
+        for (const [, state] of startItems.entries()) {
+          left = Math.min(left, state.x);
+          top = Math.min(top, state.y);
+          right = Math.max(right, state.x + state.w);
+          bottom = Math.max(bottom, state.y + state.h);
+        }
+        transformState.groupResize = {
+          left,
+          top,
+          right,
+          bottom,
+          width: Math.max(1, right - left),
+          height: Math.max(1, bottom - top)
+        };
+      }
       if (mode === "rotate") {
         const rect = node.getBoundingClientRect();
         const centerX = rect.left + (rect.width / 2);
@@ -2955,6 +2976,53 @@
           target.y = Math.max(0, Math.round(state.y + dy));
           state.node.style.left = `${target.x}px`;
           state.node.style.top = `${target.y}px`;
+        }
+      } else if (transformState.mode === "resize" && transformState.groupResize) {
+        const group = transformState.groupResize;
+        const dir = transformState.handle;
+        let left = group.left;
+        let top = group.top;
+        let right = group.right;
+        let bottom = group.bottom;
+
+        if (dir.includes("e")) right += dxRaw;
+        if (dir.includes("s")) bottom += dyRaw;
+        if (dir.includes("w")) left += dxRaw;
+        if (dir.includes("n")) top += dyRaw;
+
+        const minGroupW = 40;
+        const minGroupH = 40;
+        if (right - left < minGroupW) {
+          if (dir.includes("w")) left = right - minGroupW;
+          else right = left + minGroupW;
+        }
+        if (bottom - top < minGroupH) {
+          if (dir.includes("n")) top = bottom - minGroupH;
+          else bottom = top + minGroupH;
+        }
+
+        const nextWidth = Math.max(1, right - left);
+        const nextHeight = Math.max(1, bottom - top);
+        const scaleX = nextWidth / group.width;
+        const scaleY = nextHeight / group.height;
+
+        for (const [id, state] of transformState.startItems.entries()) {
+          const target = getItemById(id);
+          if (!target) continue;
+          const minTargetW = state.type === "image" ? 24 : 40;
+          const minTargetH = state.type === "image" ? 24 : 40;
+          const nextX = left + ((state.x - group.left) * scaleX);
+          const nextY = top + ((state.y - group.top) * scaleY);
+          const nextW = Math.max(minTargetW, state.w * scaleX);
+          const nextH = Math.max(minTargetH, state.h * scaleY);
+          target.x = Math.max(0, Math.round(nextX));
+          target.y = Math.max(0, Math.round(nextY));
+          target.w = Math.round(nextW);
+          target.h = Math.round(nextH);
+          state.node.style.left = `${target.x}px`;
+          state.node.style.top = `${target.y}px`;
+          state.node.style.width = `${target.w}px`;
+          state.node.style.height = `${target.h}px`;
         }
       } else {
         const dx = dxRaw;
