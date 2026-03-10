@@ -2709,12 +2709,17 @@
           if (!isEditMode || isAction || isHandle) return;
           const isToggle = event.ctrlKey || event.metaKey;
           const isRange = event.shiftKey;
+          const alreadySelected = isSelected(item.id);
+          const hasMultiSelection = getSelectionIds().length > 1;
           if (event.shiftKey) {
             selectRangeTo(item.id);
           } else if (isToggle) {
             toggleSelection(item.id);
           } else {
-            setSingleSelection(item.id);
+            // Keep current multi-selection when dragging one of its selected items.
+            if (!(alreadySelected && hasMultiSelection)) {
+              setSingleSelection(item.id);
+            }
           }
           if (isTextTyping && event.altKey && !item.locked) {
             syncSelectionClasses();
