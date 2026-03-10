@@ -144,6 +144,9 @@
     const hoverFxSelect = document.getElementById("hoverFxSelect");
     const applyHoverFxBtn = document.getElementById("applyHoverFxBtn");
     const clearHoverFxBtn = document.getElementById("clearHoverFxBtn");
+    const hoverBlurInput = document.getElementById("hoverBlurInput");
+    const hoverBlurValue = document.getElementById("hoverBlurValue");
+    const applyHoverBlurBtn = document.getElementById("applyHoverBlurBtn");
     const hoverSwapInput = document.getElementById("hoverSwapInput");
     const applyHoverSwapBtn = document.getElementById("applyHoverSwapBtn");
     const clearHoverSwapBtn = document.getElementById("clearHoverSwapBtn");
@@ -758,6 +761,8 @@
         if (!Number.isFinite(next.rotateDeg)) next.rotateDeg = 0;
         if (!["none", "zoom", "tilt", "lift", "gray-pop", "blur-pop"].includes(next.hoverFx)) next.hoverFx = "none";
         if (typeof next.hoverSwapSrc !== "string") next.hoverSwapSrc = "";
+        if (!Number.isFinite(next.hoverBlurPx)) next.hoverBlurPx = 2;
+        next.hoverBlurPx = clamp(Number(next.hoverBlurPx) || 2, 0, 40);
         if (typeof next.blendMode !== "string" || !next.blendMode.trim()) next.blendMode = "normal";
         if (typeof next.invertMedia !== "boolean") next.invertMedia = false;
         if (!Number.isFinite(next.depthZ)) next.depthZ = 0;
@@ -1495,6 +1500,7 @@
         mediaAnimations: Array.isArray(item.mediaAnimations) ? [...item.mediaAnimations] : [],
         fitMode: item.fitMode,
         hoverFx: item.hoverFx,
+        hoverBlurPx: item.hoverBlurPx,
         invertMedia: item.invertMedia,
         blendMode: item.blendMode,
         depthZ: item.depthZ,
@@ -1520,6 +1526,7 @@
       if (typeof snapshot.animation === "string") item.animation = snapshot.animation;
       if (Number.isFinite(snapshot.animationSpeed)) item.animationSpeed = clamp(snapshot.animationSpeed, 0.2, 30);
       if (typeof snapshot.hoverFx === "string") item.hoverFx = snapshot.hoverFx;
+      if (Number.isFinite(snapshot.hoverBlurPx)) item.hoverBlurPx = clamp(snapshot.hoverBlurPx, 0, 40);
       if (typeof snapshot.blendMode === "string") item.blendMode = snapshot.blendMode;
       if (Number.isFinite(snapshot.depthZ)) item.depthZ = snapshot.depthZ;
       if (Number.isFinite(snapshot.shadowSoftness)) item.shadowSoftness = snapshot.shadowSoftness;
@@ -1702,6 +1709,16 @@
         item && !item.locked && (item.type === "image" || item.type === "video"));
       if (!selected.length) return;
       for (const item of selected) item.hoverFx = mode;
+      persistAll(true);
+      renderCanvas();
+    }
+
+    function applyHoverBlurStrengthToSelection(px) {
+      const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
+        item && !item.locked && (item.type === "image" || item.type === "video"));
+      if (!selected.length) return;
+      const strength = clamp(Number(px) || 2, 0, 40);
+      for (const item of selected) item.hoverBlurPx = strength;
       persistAll(true);
       renderCanvas();
     }
@@ -2309,6 +2326,8 @@
       if (hoverFxSelect) hoverFxSelect.disabled = !isEditMode || !hasMediaSelection;
       if (applyHoverFxBtn) applyHoverFxBtn.disabled = !isEditMode || !hasMediaSelection;
       if (clearHoverFxBtn) clearHoverFxBtn.disabled = !isEditMode || !hasMediaSelection;
+      if (hoverBlurInput) hoverBlurInput.disabled = !isEditMode || !hasMediaSelection;
+      if (applyHoverBlurBtn) applyHoverBlurBtn.disabled = !isEditMode || !hasMediaSelection;
       if (hoverSwapInput) hoverSwapInput.disabled = !isEditMode || !hasMediaSelection;
       if (applyHoverSwapBtn) applyHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
       if (clearHoverSwapBtn) clearHoverSwapBtn.disabled = !isEditMode || !hasMediaSelection;
@@ -2351,6 +2370,11 @@
       }
       if (hasMediaSelection) {
         mediaFitSelect.value = selectedMediaItems[0].fitMode === "stretch" ? "stretch" : "contain";
+        if (hoverBlurInput) {
+          const blurPx = clamp(Number(selectedMediaItems[0].hoverBlurPx) || 2, 0, 40);
+          hoverBlurInput.value = String(blurPx);
+          if (hoverBlurValue) hoverBlurValue.textContent = `${Math.round(blurPx)}px`;
+        }
       }
       if (invertMediaToggle) {
         invertMediaToggle.checked = hasImageSelection ? Boolean(selectedImageItems[0].invertMedia) : false;
@@ -2362,6 +2386,11 @@
           ? active.linkDisplay
           : "default";
         if (hoverFxSelect) hoverFxSelect.value = active.hoverFx || "none";
+        if (hoverBlurInput) {
+          const blurPx = clamp(Number(active.hoverBlurPx) || 2, 0, 40);
+          hoverBlurInput.value = String(blurPx);
+          if (hoverBlurValue) hoverBlurValue.textContent = `${Math.round(blurPx)}px`;
+        }
         if (blendModeSelect) blendModeSelect.value = active.blendMode || "normal";
         if (depthInput) depthInput.value = String(active.depthZ || 0);
         if (shadowSoftnessInput) shadowSoftnessInput.value = String(active.shadowSoftness || 18);
@@ -2495,6 +2524,7 @@
         node.style.transformOrigin = "center center";
         node.style.transform = `rotate(${Number(item.rotateDeg) || 0}deg)`;
         node.dataset.hoverFx = item.hoverFx || "none";
+        node.style.setProperty("--hover-blur-pop", `${clamp(Number(item.hoverBlurPx) || 2, 0, 40)}px`);
         node.style.mixBlendMode = item.blendMode && item.blendMode !== "normal" ? item.blendMode : "normal";
         const depth = Number(item.depthZ) || 0;
         const softness = clamp(Number(item.shadowSoftness) || 18, 0, 80);
@@ -3089,6 +3119,7 @@
         animation: "none",
         animationSpeed: 6,
         hoverFx: "none",
+        hoverBlurPx: 2,
         hoverSwapSrc: "",
         invertMedia: false,
         blendMode: "normal",
@@ -3130,6 +3161,7 @@
         animation: "none",
         animationSpeed: 6,
         hoverFx: "none",
+        hoverBlurPx: 2,
         hoverSwapSrc: "",
         invertMedia: false,
         blendMode: "normal",
@@ -3391,6 +3423,7 @@
         animationSpeed: 6,
         mediaAnimations: [],
         hoverFx: "none",
+        hoverBlurPx: 2,
         hoverSwapSrc: "",
         invertMedia: false,
         blendMode: "normal",
@@ -3819,6 +3852,16 @@
       });
     }
     if (clearHoverFxBtn) clearHoverFxBtn.addEventListener("click", () => applyHoverFxToSelection("none"));
+    if (hoverBlurInput) {
+      hoverBlurInput.addEventListener("input", () => {
+        if (hoverBlurValue) hoverBlurValue.textContent = `${Math.round(Number(hoverBlurInput.value) || 0)}px`;
+      });
+    }
+    if (applyHoverBlurBtn) {
+      applyHoverBlurBtn.addEventListener("click", () => {
+        applyHoverBlurStrengthToSelection((hoverBlurInput && hoverBlurInput.value) || 2);
+      });
+    }
     if (applyHoverSwapBtn) {
       applyHoverSwapBtn.addEventListener("click", async () => {
         const file = hoverSwapInput && hoverSwapInput.files && hoverSwapInput.files[0];

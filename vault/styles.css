@@ -1560,7 +1560,7 @@
 
     .canvas-item[data-hover-fx="blur-pop"] img,
     .canvas-item[data-hover-fx="blur-pop"] video {
-      filter: blur(2px);
+      filter: blur(var(--hover-blur-pop, 2px));
     }
 
     .canvas-item[data-hover-fx="blur-pop"]:hover img,
