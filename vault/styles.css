@@ -47,12 +47,14 @@
       color: var(--text);
       background: var(--bg);
       min-height: 100%;
+      overflow-x: hidden;
     }
 
     .shell {
       width: 100%;
       margin: 0;
       padding: 0 0 6rem;
+      overflow-x: hidden;
     }
 
     .hero {
@@ -77,6 +79,7 @@
       background: var(--canvas-bg);
       overflow: visible;
       min-height: 100vh;
+      overflow-x: hidden;
     }
 
     .canvas-wrap.drop-active {
