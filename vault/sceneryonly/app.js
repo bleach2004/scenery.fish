@@ -195,6 +195,7 @@
     let lastVerifiedEditPassword = "";
     let revealObserver = null;
     let topbarPeekActive = false;
+    let gateInitPromise = null;
 
     function apiUrl(path) {
       if (!path.startsWith("/")) return path;
@@ -3664,10 +3665,14 @@
       passwordInput.focus();
     }
 
-    initializeGateState();
+    gateInitPromise = initializeGateState();
 
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (gateInitPromise) {
+        await gateInitPromise;
+        gateInitPromise = null;
+      }
       const input = passwordInput.value;
       const ok = await verifyVaultPassword(input);
       if (ok) {

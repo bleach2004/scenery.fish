@@ -199,6 +199,7 @@
     let imageInspectImg = null;
     let imageInspectTitle = null;
     let imageInspectNoteEl = null;
+    let gateInitPromise = null;
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
@@ -3705,10 +3706,14 @@
       passwordInput.focus();
     }
 
-    initializeGateState();
+    gateInitPromise = initializeGateState();
 
     loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (gateInitPromise) {
+        await gateInitPromise;
+        gateInitPromise = null;
+      }
       const input = passwordInput.value;
       const ok = await verifyVaultPassword(input);
       if (ok) {
