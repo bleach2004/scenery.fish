@@ -159,6 +159,139 @@ async function publishWorkspaceToGithub(env, message, workspace) {
   return publishEncodedContentToGithub(env, message, encodedContent);
 }
 
+async function githubApiRequest(url, token, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set("Accept", "application/vnd.github+json");
+  headers.set("Authorization", `Bearer ${token}`);
+  headers.set("User-Agent", "scenery-fish-worker");
+  headers.set("X-GitHub-Api-Version", "2022-11-28");
+
+  return fetch(url, {
+    ...init,
+    headers
+  });
+}
+
+async function publishEncodedContentViaGitDataApi(owner, repo, path, branch, token, message, encodedContent) {
+  const normalizedContent = String(encodedContent || "").replace(/\s+/g, "");
+  const decodedContent = base64DecodeUtf8(normalizedContent);
+
+  const refUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
+  const refResponse = await githubApiRequest(refUrl, token);
+  if (!refResponse.ok) {
+    const body = await refResponse.text();
+    throw new Error(`Failed to read branch ref (${refResponse.status}): ${body}`);
+  }
+  const refData = await refResponse.json();
+  const headCommitSha = refData && refData.object && typeof refData.object.sha === "string"
+    ? refData.object.sha
+    : "";
+  if (!headCommitSha) {
+    throw new Error("Failed to resolve branch head commit SHA.");
+  }
+
+  const commitUrl = `https://api.github.com/repos/${owner}/${repo}/git/commits/${encodeURIComponent(headCommitSha)}`;
+  const commitResponse = await githubApiRequest(commitUrl, token);
+  if (!commitResponse.ok) {
+    const body = await commitResponse.text();
+    throw new Error(`Failed to read head commit (${commitResponse.status}): ${body}`);
+  }
+  const commitData = await commitResponse.json();
+  const baseTreeSha = commitData && commitData.tree && typeof commitData.tree.sha === "string"
+    ? commitData.tree.sha
+    : "";
+  if (!baseTreeSha) {
+    throw new Error("Failed to resolve base tree SHA.");
+  }
+
+  const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs`;
+  const blobResponse = await githubApiRequest(blobUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      content: decodedContent,
+      encoding: "utf-8"
+    })
+  });
+  if (!blobResponse.ok) {
+    const body = await blobResponse.text();
+    throw new Error(`Failed to create blob (${blobResponse.status}): ${body}`);
+  }
+  const blobData = await blobResponse.json();
+  const blobSha = typeof blobData.sha === "string" ? blobData.sha : "";
+  if (!blobSha) {
+    throw new Error("Failed to resolve blob SHA.");
+  }
+
+  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees`;
+  const treeResponse = await githubApiRequest(treeUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      base_tree: baseTreeSha,
+      tree: [
+        {
+          path,
+          mode: "100644",
+          type: "blob",
+          sha: blobSha
+        }
+      ]
+    })
+  });
+  if (!treeResponse.ok) {
+    const body = await treeResponse.text();
+    throw new Error(`Failed to create tree (${treeResponse.status}): ${body}`);
+  }
+  const treeData = await treeResponse.json();
+  const newTreeSha = typeof treeData.sha === "string" ? treeData.sha : "";
+  if (!newTreeSha) {
+    throw new Error("Failed to resolve new tree SHA.");
+  }
+
+  const createCommitUrl = `https://api.github.com/repos/${owner}/${repo}/git/commits`;
+  const createCommitResponse = await githubApiRequest(createCommitUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message,
+      tree: newTreeSha,
+      parents: [headCommitSha]
+    })
+  });
+  if (!createCommitResponse.ok) {
+    const body = await createCommitResponse.text();
+    throw new Error(`Failed to create commit (${createCommitResponse.status}): ${body}`);
+  }
+  const newCommitData = await createCommitResponse.json();
+  const newCommitSha = typeof newCommitData.sha === "string" ? newCommitData.sha : "";
+  if (!newCommitSha) {
+    throw new Error("Failed to resolve new commit SHA.");
+  }
+
+  const updateRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`;
+  const updateRefResponse = await githubApiRequest(updateRefUrl, token, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      sha: newCommitSha,
+      force: false
+    })
+  });
+  if (!updateRefResponse.ok) {
+    const body = await updateRefResponse.text();
+    throw new Error(`Failed to update branch ref (${updateRefResponse.status}): ${body}`);
+  }
+}
+
 async function publishEncodedContentToGithub(env, message, encodedContent) {
   const owner = env.GITHUB_OWNER || "bleach2004";
   const repo = env.GITHUB_REPO || "scenery.fish";
@@ -190,11 +323,18 @@ async function publishEncodedContentToGithub(env, message, encodedContent) {
     },
     body: JSON.stringify(requestBody)
   });
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`GitHub publish failed (${response.status}): ${body}`);
+  if (response.ok) {
+    return { owner, repo, branch, path };
   }
-  return { owner, repo, branch, path };
+
+  const body = await response.text();
+  const tooLargeForContentsApi = response.status === 422 && /too large to be processed/i.test(body);
+  if (tooLargeForContentsApi) {
+    await publishEncodedContentViaGitDataApi(owner, repo, path, branch, token, message, encodedContent);
+    return { owner, repo, branch, path };
+  }
+
+  throw new Error(`GitHub publish failed (${response.status}): ${body}`);
 }
 
 export default {
