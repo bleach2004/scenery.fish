@@ -174,7 +174,6 @@ async function githubApiRequest(url, token, init = {}) {
 
 async function publishEncodedContentViaGitDataApi(owner, repo, path, branch, token, message, encodedContent) {
   const normalizedContent = String(encodedContent || "").replace(/\s+/g, "");
-  const decodedContent = base64DecodeUtf8(normalizedContent);
 
   const refUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
   const refResponse = await githubApiRequest(refUrl, token);
@@ -211,8 +210,8 @@ async function publishEncodedContentViaGitDataApi(owner, repo, path, branch, tok
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      content: decodedContent,
-      encoding: "utf-8"
+      content: normalizedContent,
+      encoding: "base64"
     })
   });
   if (!blobResponse.ok) {
