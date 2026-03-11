@@ -349,19 +349,7 @@ async function createGithubBlobFromBase64Stream(owner, repo, token, base64Stream
   return blobSha;
 }
 
-async function publishRequestBodyViaGitDataApi(env, message, base64Stream) {
-  const owner = env.GITHUB_OWNER || "bleach2004";
-  const repo = env.GITHUB_REPO || "scenery.fish";
-  const branch = env.GITHUB_BRANCH || "main";
-  const path = env.GITHUB_PATH || "vault/workspace.json";
-  const token = env.GITHUB_TOKEN || "";
-  if (!token) {
-    throw new Error("Missing GITHUB_TOKEN secret.");
-  }
-  if (!base64Stream) {
-    throw new Error("Missing publish payload stream.");
-  }
-
+async function resolveHeadCommitAndTree(owner, repo, branch, token) {
   const refUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
   const refResponse = await githubApiRequest(refUrl, token);
   if (!refResponse.ok) {
@@ -390,7 +378,27 @@ async function publishRequestBodyViaGitDataApi(env, message, base64Stream) {
     throw new Error("Failed to resolve base tree SHA.");
   }
 
-  const blobSha = await createGithubBlobFromBase64Stream(owner, repo, token, base64Stream);
+  return { headCommitSha, baseTreeSha };
+}
+
+async function publishRequestBodyViaGitDataApi(env, message, base64Stream) {
+  const owner = env.GITHUB_OWNER || "bleach2004";
+  const repo = env.GITHUB_REPO || "scenery.fish";
+  const branch = env.GITHUB_BRANCH || "main";
+  const path = env.GITHUB_PATH || "vault/workspace.json";
+  const token = env.GITHUB_TOKEN || "";
+  if (!token) {
+    throw new Error("Missing GITHUB_TOKEN secret.");
+  }
+  if (!base64Stream) {
+    throw new Error("Missing publish payload stream.");
+  }
+
+  const [headInfo, blobSha] = await Promise.all([
+    resolveHeadCommitAndTree(owner, repo, branch, token),
+    createGithubBlobFromBase64Stream(owner, repo, token, base64Stream)
+  ]);
+  const { headCommitSha, baseTreeSha } = headInfo;
 
   const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees`;
   const treeResponse = await githubApiRequest(treeUrl, token, {
