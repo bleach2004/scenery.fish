@@ -291,6 +291,176 @@ async function publishEncodedContentViaGitDataApi(owner, repo, path, branch, tok
   }
 }
 
+function createBlobCreateRequestBodyStream(base64Stream) {
+  const encoder = new TextEncoder();
+  const prefix = encoder.encode('{"content":"');
+  const suffix = encoder.encode('","encoding":"base64"}');
+  const reader = base64Stream.getReader();
+  let sentPrefix = false;
+  let sentSuffix = false;
+
+  return new ReadableStream({
+    async pull(controller) {
+      if (!sentPrefix) {
+        controller.enqueue(prefix);
+        sentPrefix = true;
+        return;
+      }
+      const { value, done } = await reader.read();
+      if (!done) {
+        controller.enqueue(value);
+        return;
+      }
+      if (!sentSuffix) {
+        controller.enqueue(suffix);
+        sentSuffix = true;
+      }
+      controller.close();
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason);
+      } catch {
+        // Ignore cancellation errors from underlying stream.
+      }
+    }
+  });
+}
+
+async function createGithubBlobFromBase64Stream(owner, repo, token, base64Stream) {
+  const blobUrl = `https://api.github.com/repos/${owner}/${repo}/git/blobs`;
+  const bodyStream = createBlobCreateRequestBodyStream(base64Stream);
+  const blobResponse = await githubApiRequest(blobUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: bodyStream
+  });
+  if (!blobResponse.ok) {
+    const body = await blobResponse.text();
+    throw new Error(`Failed to create blob (${blobResponse.status}): ${body}`);
+  }
+  const blobData = await blobResponse.json();
+  const blobSha = typeof blobData.sha === "string" ? blobData.sha : "";
+  if (!blobSha) {
+    throw new Error("Failed to resolve blob SHA.");
+  }
+  return blobSha;
+}
+
+async function publishRequestBodyViaGitDataApi(env, message, base64Stream) {
+  const owner = env.GITHUB_OWNER || "bleach2004";
+  const repo = env.GITHUB_REPO || "scenery.fish";
+  const branch = env.GITHUB_BRANCH || "main";
+  const path = env.GITHUB_PATH || "vault/workspace.json";
+  const token = env.GITHUB_TOKEN || "";
+  if (!token) {
+    throw new Error("Missing GITHUB_TOKEN secret.");
+  }
+  if (!base64Stream) {
+    throw new Error("Missing publish payload stream.");
+  }
+
+  const refUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`;
+  const refResponse = await githubApiRequest(refUrl, token);
+  if (!refResponse.ok) {
+    const body = await refResponse.text();
+    throw new Error(`Failed to read branch ref (${refResponse.status}): ${body}`);
+  }
+  const refData = await refResponse.json();
+  const headCommitSha = refData && refData.object && typeof refData.object.sha === "string"
+    ? refData.object.sha
+    : "";
+  if (!headCommitSha) {
+    throw new Error("Failed to resolve branch head commit SHA.");
+  }
+
+  const commitUrl = `https://api.github.com/repos/${owner}/${repo}/git/commits/${encodeURIComponent(headCommitSha)}`;
+  const commitResponse = await githubApiRequest(commitUrl, token);
+  if (!commitResponse.ok) {
+    const body = await commitResponse.text();
+    throw new Error(`Failed to read head commit (${commitResponse.status}): ${body}`);
+  }
+  const commitData = await commitResponse.json();
+  const baseTreeSha = commitData && commitData.tree && typeof commitData.tree.sha === "string"
+    ? commitData.tree.sha
+    : "";
+  if (!baseTreeSha) {
+    throw new Error("Failed to resolve base tree SHA.");
+  }
+
+  const blobSha = await createGithubBlobFromBase64Stream(owner, repo, token, base64Stream);
+
+  const treeUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees`;
+  const treeResponse = await githubApiRequest(treeUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      base_tree: baseTreeSha,
+      tree: [
+        {
+          path,
+          mode: "100644",
+          type: "blob",
+          sha: blobSha
+        }
+      ]
+    })
+  });
+  if (!treeResponse.ok) {
+    const body = await treeResponse.text();
+    throw new Error(`Failed to create tree (${treeResponse.status}): ${body}`);
+  }
+  const treeData = await treeResponse.json();
+  const newTreeSha = typeof treeData.sha === "string" ? treeData.sha : "";
+  if (!newTreeSha) {
+    throw new Error("Failed to resolve new tree SHA.");
+  }
+
+  const createCommitUrl = `https://api.github.com/repos/${owner}/${repo}/git/commits`;
+  const createCommitResponse = await githubApiRequest(createCommitUrl, token, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message,
+      tree: newTreeSha,
+      parents: [headCommitSha]
+    })
+  });
+  if (!createCommitResponse.ok) {
+    const body = await createCommitResponse.text();
+    throw new Error(`Failed to create commit (${createCommitResponse.status}): ${body}`);
+  }
+  const newCommitData = await createCommitResponse.json();
+  const newCommitSha = typeof newCommitData.sha === "string" ? newCommitData.sha : "";
+  if (!newCommitSha) {
+    throw new Error("Failed to resolve new commit SHA.");
+  }
+
+  const updateRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`;
+  const updateRefResponse = await githubApiRequest(updateRefUrl, token, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      sha: newCommitSha,
+      force: false
+    })
+  });
+  if (!updateRefResponse.ok) {
+    const body = await updateRefResponse.text();
+    throw new Error(`Failed to update branch ref (${updateRefResponse.status}): ${body}`);
+  }
+
+  return { owner, repo, branch, path };
+}
+
 async function publishEncodedContentToGithub(env, message, encodedContent) {
   const owner = env.GITHUB_OWNER || "bleach2004";
   const repo = env.GITHUB_REPO || "scenery.fish";
@@ -392,12 +562,11 @@ export default {
         if (!message.trim()) {
           message = `Publish vault workspace ${new Date().toISOString()}`;
         }
-        const encodedContent = (await request.text()).replace(/\s+/g, "");
-        if (!encodedContent) {
+        if (!request.body) {
           return json({ ok: false, error: "invalid workspace payload" }, 400, cors);
         }
         try {
-          const result = await publishEncodedContentToGithub(env, message.trim(), encodedContent);
+          const result = await publishRequestBodyViaGitDataApi(env, message.trim(), request.body);
           return json({ ok: true, ...result }, 200, cors);
         } catch (error) {
           return json({ ok: false, error: String(error && error.message ? error.message : error) }, 500, cors);
