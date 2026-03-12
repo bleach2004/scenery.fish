@@ -4,8 +4,15 @@
     const PUBLISHED_WORKSPACE_API_URL = `${API_BASE}/api/workspace/published`;
     const PUBLISH_MAX_BYTES = 90 * 1024 * 1024;
     const ASSET_POOL_REF_KEY = "__vaultAssetRef";
+    const ASSET_EXTERNAL_REF_KEY = "__vaultAssetExternalRef";
     const ASSET_POOL_VERSION = 1;
     const ASSET_POOL_MIN_DATA_URL_LENGTH = 128;
+    const ASSET_SOURCE_TYPE = "github-workspace-v1";
+    const ASSET_RESOLVE_MAX_DEPTH = 5;
+    const GITHUB_OWNER = "bleach2004";
+    const GITHUB_REPO = "scenery.fish";
+    const GITHUB_BRANCH = "main";
+    const GITHUB_WORKSPACE_PATH = "vault/workspace.json";
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -199,6 +206,7 @@
     let revealObserver = null;
     let topbarPeekActive = false;
     let gateInitPromise = null;
+    const assetSourceCache = new Map();
 
     function apiUrl(path) {
       if (!path.startsWith("/")) return path;
@@ -353,8 +361,103 @@
       return Number.isInteger(index) && index >= 0;
     }
 
-    function packValueWithAssetPool(value, assetPool, indexByAsset) {
+    function isAssetExternalRefObject(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const keys = Object.keys(value);
+      if (keys.length !== 1 || keys[0] !== ASSET_EXTERNAL_REF_KEY) return false;
+      const data = value[ASSET_EXTERNAL_REF_KEY];
+      return Boolean(
+        data &&
+        typeof data === "object" &&
+        Number.isInteger(data.source) &&
+        data.source >= 0 &&
+        Number.isInteger(data.index) &&
+        data.index >= 0
+      );
+    }
+
+    function normalizeAssetSourceDescriptor(source) {
+      if (!source || typeof source !== "object") return null;
+      if (source.type !== ASSET_SOURCE_TYPE) return null;
+      const owner = typeof source.owner === "string" && source.owner.trim() ? source.owner.trim() : GITHUB_OWNER;
+      const repo = typeof source.repo === "string" && source.repo.trim() ? source.repo.trim() : GITHUB_REPO;
+      const path = typeof source.path === "string" && source.path.trim() ? source.path.trim() : GITHUB_WORKSPACE_PATH;
+      const commit = typeof source.commit === "string" && source.commit.trim() ? source.commit.trim() : "";
+      if (!commit) return null;
+      return { type: ASSET_SOURCE_TYPE, owner, repo, path, commit };
+    }
+
+    function buildAssetSourceCacheKey(source) {
+      return `${source.owner}/${source.repo}:${source.path}@${source.commit}`;
+    }
+
+    async function fetchMainBranchHeadCommit() {
+      const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/commits/${encodeURIComponent(GITHUB_BRANCH)}`;
+      const response = await fetch(url, {
+        headers: {
+          Accept: "application/vnd.github+json"
+        },
+        cache: "no-store"
+      });
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Failed to resolve main commit (${response.status}): ${body}`);
+      }
+      const data = await response.json();
+      const sha = data && typeof data.sha === "string" ? data.sha.trim() : "";
+      if (!sha) {
+        throw new Error("Failed to resolve main commit SHA.");
+      }
+      return sha;
+    }
+
+    function getWorkspaceShape(payload) {
+      if (!payload || typeof payload !== "object") return null;
+      if (payload.workspace && typeof payload.workspace === "object") return payload.workspace;
+      if (Array.isArray(payload.canvases)) return payload;
+      return null;
+    }
+
+    function collectEmbeddableAssets(value, assets, indexByAsset) {
       if (looksLikeEmbeddableDataUrl(value)) {
+        if (!indexByAsset.has(value)) {
+          indexByAsset.set(value, assets.length);
+          assets.push(value);
+        }
+        return;
+      }
+      if (!value || typeof value !== "object") return;
+      if (Array.isArray(value)) {
+        for (const entry of value) {
+          collectEmbeddableAssets(entry, assets, indexByAsset);
+        }
+        return;
+      }
+      if (isAssetPoolRefObject(value) || isAssetExternalRefObject(value)) return;
+      for (const entry of Object.values(value)) {
+        collectEmbeddableAssets(entry, assets, indexByAsset);
+      }
+    }
+
+    function buildEmbeddableAssetIndex(value) {
+      const assets = [];
+      const indexByAsset = new Map();
+      collectEmbeddableAssets(value, assets, indexByAsset);
+      return { assets, indexByAsset };
+    }
+
+    function packValueWithAssetPool(value, assetPool, indexByAsset, sourceIndexByAsset, stats) {
+      if (looksLikeEmbeddableDataUrl(value)) {
+        if (sourceIndexByAsset && sourceIndexByAsset.has(value)) {
+          const sourceIndex = sourceIndexByAsset.get(value);
+          stats.externalRefCount += 1;
+          return {
+            [ASSET_EXTERNAL_REF_KEY]: {
+              source: 0,
+              index: sourceIndex
+            }
+          };
+        }
         let index = indexByAsset.get(value);
         if (!Number.isInteger(index)) {
           index = assetPool.length;
@@ -384,6 +487,9 @@
         if (index >= 0 && index < assetPool.length) return assetPool[index];
         return "";
       }
+      if (isAssetExternalRefObject(value)) {
+        return value;
+      }
       const next = {};
       for (const [key, entry] of Object.entries(value)) {
         next[key] = unpackValueWithAssetPool(entry, assetPool);
@@ -404,6 +510,87 @@
       delete unpackSource.assetPool;
       delete unpackSource.assetPoolVersion;
       return unpackValueWithAssetPool(unpackSource, pool);
+    }
+
+    async function getAssetsForSource(source, depth = 0) {
+      if (depth > ASSET_RESOLVE_MAX_DEPTH) return [];
+      const normalized = normalizeAssetSourceDescriptor(source);
+      if (!normalized) return [];
+      const cacheKey = buildAssetSourceCacheKey(normalized);
+      if (assetSourceCache.has(cacheKey)) {
+        return assetSourceCache.get(cacheKey);
+      }
+
+      const fetchPromise = (async () => {
+        const url =
+          `https://raw.githubusercontent.com/${normalized.owner}/${normalized.repo}/` +
+          `${encodeURIComponent(normalized.commit)}/${normalized.path}`;
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) {
+          const body = await response.text();
+          throw new Error(`Failed to load asset source (${response.status}): ${body}`);
+        }
+        const sourcePayload = await response.json();
+        const resolvedSourcePayload = await resolvePublishedPayloadAssets(sourcePayload, depth + 1);
+        const sourceWorkspace = getWorkspaceShape(resolvedSourcePayload);
+        if (!sourceWorkspace) return [];
+        return buildEmbeddableAssetIndex(sourceWorkspace).assets;
+      })().catch((error) => {
+        assetSourceCache.delete(cacheKey);
+        throw error;
+      });
+
+      assetSourceCache.set(cacheKey, fetchPromise);
+      return fetchPromise;
+    }
+
+    async function resolveAssetExternalRefs(value, assetSources, depth = 0) {
+      if (depth > ASSET_RESOLVE_MAX_DEPTH) return value;
+      if (!value || typeof value !== "object") return value;
+      if (Array.isArray(value)) {
+        const out = [];
+        for (const entry of value) {
+          out.push(await resolveAssetExternalRefs(entry, assetSources, depth));
+        }
+        return out;
+      }
+      if (isAssetExternalRefObject(value)) {
+        const ref = value[ASSET_EXTERNAL_REF_KEY];
+        const source = assetSources[ref.source];
+        if (!source) return "";
+        try {
+          const assets = await getAssetsForSource(source, depth + 1);
+          return ref.index >= 0 && ref.index < assets.length ? assets[ref.index] : "";
+        } catch (error) {
+          console.warn("Failed to resolve external asset ref.", error);
+          return "";
+        }
+      }
+      const next = {};
+      for (const [key, entry] of Object.entries(value)) {
+        next[key] = await resolveAssetExternalRefs(entry, assetSources, depth);
+      }
+      return next;
+    }
+
+    async function resolvePublishedPayloadAssets(payload, depth = 0) {
+      const decoded = decodePublishedPayload(payload);
+      if (!decoded || typeof decoded !== "object") return decoded;
+      const sources = Array.isArray(decoded.assetSources)
+        ? decoded.assetSources.map((source) => normalizeAssetSourceDescriptor(source)).filter(Boolean)
+        : [];
+      if (!sources.length) return decoded;
+
+      if (decoded.workspace && typeof decoded.workspace === "object") {
+        return {
+          ...decoded,
+          workspace: await resolveAssetExternalRefs(decoded.workspace, sources, depth)
+        };
+      }
+      if (Array.isArray(decoded.canvases)) {
+        return await resolveAssetExternalRefs(decoded, sources, depth);
+      }
+      return decoded;
     }
 
     function compactSettingsForPublish(settingsValue) {
@@ -497,23 +684,61 @@
       };
     }
 
-    function buildPublishPayload() {
+    async function buildPublishPayload() {
       const compactWorkspace = compactWorkspaceForPublish(workspace);
       const payload = {
         version: 1,
         publishedAt: new Date().toISOString(),
         workspace: compactWorkspace
       };
+
+      let sourceDescriptor = null;
+      let sourceIndexByAsset = null;
+      try {
+        const commit = await fetchMainBranchHeadCommit();
+        sourceDescriptor = {
+          type: ASSET_SOURCE_TYPE,
+          owner: GITHUB_OWNER,
+          repo: GITHUB_REPO,
+          path: GITHUB_WORKSPACE_PATH,
+          commit
+        };
+        const sourceAssets = await getAssetsForSource(sourceDescriptor, 0);
+        const sourceIndex = new Map();
+        for (let i = 0; i < sourceAssets.length; i += 1) {
+          const asset = sourceAssets[i];
+          if (!sourceIndex.has(asset)) {
+            sourceIndex.set(asset, i);
+          }
+        }
+        sourceIndexByAsset = sourceIndex;
+      } catch (error) {
+        console.warn("Delta publish source load failed; falling back to inline media payload.", error);
+      }
+
       const assetPool = [];
       const indexByAsset = new Map();
-      const packedWorkspace = packValueWithAssetPool(payload.workspace, assetPool, indexByAsset);
-      if (!assetPool.length) return payload;
-      return {
+      const stats = { externalRefCount: 0 };
+      const packedWorkspace = packValueWithAssetPool(
+        payload.workspace,
+        assetPool,
+        indexByAsset,
+        sourceIndexByAsset,
+        stats
+      );
+
+      const nextPayload = {
         ...payload,
-        workspace: packedWorkspace,
-        assetPoolVersion: ASSET_POOL_VERSION,
-        assetPool
+        workspace: packedWorkspace
       };
+      if (assetPool.length) {
+        nextPayload.assetPoolVersion = ASSET_POOL_VERSION;
+        nextPayload.assetPool = assetPool;
+      }
+      if (stats.externalRefCount > 0 && sourceDescriptor) {
+        nextPayload.assetSources = [sourceDescriptor];
+      }
+      return nextPayload;
     }
 
     async function verifyVaultPassword(password) {
@@ -692,7 +917,7 @@
           const rawApiPayload = payload && payload.payload && typeof payload.payload === "object"
             ? payload.payload
             : null;
-          const apiPayload = decodePublishedPayload(rawApiPayload);
+          const apiPayload = await resolvePublishedPayloadAssets(rawApiPayload);
           if (apiPayload && apiPayload.workspace && typeof apiPayload.workspace === "object") {
             return normalizeWorkspace(apiPayload.workspace);
           }
@@ -707,7 +932,7 @@
       try {
         const response = await fetch(`${PUBLISHED_WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return null;
-        const payload = decodePublishedPayload(await response.json());
+        const payload = await resolvePublishedPayloadAssets(await response.json());
         if (!payload || typeof payload !== "object") return null;
         if (payload.workspace && typeof payload.workspace === "object") {
           return normalizeWorkspace(payload.workspace);
@@ -2232,7 +2457,7 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const publishWorkspacePayload = buildPublishPayload();
+        const publishWorkspacePayload = await buildPublishPayload();
         const rawPayloadBytes = estimateJsonBytes(publishWorkspacePayload);
         const encodedPayloadBytes = Math.ceil(rawPayloadBytes / 3) * 4;
         if (encodedPayloadBytes > PUBLISH_MAX_BYTES) {
