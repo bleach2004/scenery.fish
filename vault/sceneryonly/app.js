@@ -3,6 +3,9 @@
     const PUBLISHED_WORKSPACE_URL = "/vault/workspace.json";
     const PUBLISHED_WORKSPACE_API_URL = `${API_BASE}/api/workspace/published`;
     const PUBLISH_MAX_BYTES = 90 * 1024 * 1024;
+    const ASSET_POOL_REF_KEY = "__vaultAssetRef";
+    const ASSET_POOL_VERSION = 1;
+    const ASSET_POOL_MIN_DATA_URL_LENGTH = 128;
     const LEGACY_STORAGE_KEY = "vaultCanvasItemsV1";
     const LEGACY_SETTINGS_KEY = "vaultUiSettingsV1";
     const WORKSPACE_KEY = "vaultWorkspaceV2";
@@ -334,6 +337,185 @@
       return parts.join("");
     }
 
+    function looksLikeEmbeddableDataUrl(value) {
+      return (
+        typeof value === "string" &&
+        value.startsWith("data:") &&
+        value.length >= ASSET_POOL_MIN_DATA_URL_LENGTH
+      );
+    }
+
+    function isAssetPoolRefObject(value) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const keys = Object.keys(value);
+      if (keys.length !== 1 || keys[0] !== ASSET_POOL_REF_KEY) return false;
+      const index = value[ASSET_POOL_REF_KEY];
+      return Number.isInteger(index) && index >= 0;
+    }
+
+    function packValueWithAssetPool(value, assetPool, indexByAsset) {
+      if (looksLikeEmbeddableDataUrl(value)) {
+        let index = indexByAsset.get(value);
+        if (!Number.isInteger(index)) {
+          index = assetPool.length;
+          assetPool.push(value);
+          indexByAsset.set(value, index);
+        }
+        return { [ASSET_POOL_REF_KEY]: index };
+      }
+      if (!value || typeof value !== "object") return value;
+      if (Array.isArray(value)) {
+        return value.map((entry) => packValueWithAssetPool(entry, assetPool, indexByAsset));
+      }
+      const next = {};
+      for (const [key, entry] of Object.entries(value)) {
+        next[key] = packValueWithAssetPool(entry, assetPool, indexByAsset);
+      }
+      return next;
+    }
+
+    function unpackValueWithAssetPool(value, assetPool) {
+      if (!value || typeof value !== "object") return value;
+      if (Array.isArray(value)) {
+        return value.map((entry) => unpackValueWithAssetPool(entry, assetPool));
+      }
+      if (isAssetPoolRefObject(value)) {
+        const index = value[ASSET_POOL_REF_KEY];
+        if (index >= 0 && index < assetPool.length) return assetPool[index];
+        return "";
+      }
+      const next = {};
+      for (const [key, entry] of Object.entries(value)) {
+        next[key] = unpackValueWithAssetPool(entry, assetPool);
+      }
+      return next;
+    }
+
+    function decodePublishedPayload(payload) {
+      if (!payload || typeof payload !== "object") return payload;
+      const pool = Array.isArray(payload.assetPool) ? payload.assetPool : null;
+      if (!pool || payload.assetPoolVersion !== ASSET_POOL_VERSION) {
+        return payload;
+      }
+      if (!pool.every((entry) => typeof entry === "string")) {
+        return payload;
+      }
+      const unpackSource = { ...payload };
+      delete unpackSource.assetPool;
+      delete unpackSource.assetPoolVersion;
+      return unpackValueWithAssetPool(unpackSource, pool);
+    }
+
+    function compactSettingsForPublish(settingsValue) {
+      const normalized = normalizeSettings(settingsValue || {});
+      const next = {};
+      for (const [key, value] of Object.entries(normalized)) {
+        const defaultValue = DEFAULT_SETTINGS[key];
+        if (Array.isArray(defaultValue)) {
+          if (!Array.isArray(value) || value.length > 0) next[key] = value;
+          continue;
+        }
+        if (value !== defaultValue) next[key] = value;
+      }
+      return next;
+    }
+
+    function dropDefaultField(entry, key, defaultValue) {
+      if (!Object.prototype.hasOwnProperty.call(entry, key)) return;
+      if (Array.isArray(defaultValue)) {
+        if (Array.isArray(entry[key]) && entry[key].length === 0) {
+          delete entry[key];
+        }
+        return;
+      }
+      if (entry[key] === defaultValue) {
+        delete entry[key];
+      }
+    }
+
+    function compactItemForPublish(itemValue) {
+      const item = itemValue && typeof itemValue === "object" ? { ...itemValue } : {};
+      dropDefaultField(item, "hidden", false);
+      dropDefaultField(item, "locked", false);
+      dropDefaultField(item, "linkUrl", "");
+      dropDefaultField(item, "linkTarget", "_blank");
+      dropDefaultField(item, "linkDisplay", "default");
+      dropDefaultField(item, "animation", "none");
+      dropDefaultField(item, "animationSpeed", 6);
+      dropDefaultField(item, "rotateDeg", 0);
+      dropDefaultField(item, "hoverFx", "none");
+      dropDefaultField(item, "hoverSwapSrc", "");
+      dropDefaultField(item, "hoverBlurPx", 2);
+      dropDefaultField(item, "inspectNote", "");
+      dropDefaultField(item, "cardExplodeLayers", []);
+      dropDefaultField(item, "blendMode", "normal");
+      dropDefaultField(item, "invertMedia", false);
+      dropDefaultField(item, "depthZ", 0);
+      dropDefaultField(item, "shadowSoftness", 18);
+      dropDefaultField(item, "scrollReveal", "none");
+      dropDefaultField(item, "marqueeAxis", "x");
+      dropDefaultField(item, "marqueeGap", 40);
+      dropDefaultField(item, "mediaAnimations", []);
+
+      if (item.type === "text") {
+        dropDefaultField(item, "fontSize", 20);
+        dropDefaultField(item, "color", "#f3f3f3");
+        dropDefaultField(item, "fontFamily", DEFAULT_FONT_FAMILY);
+        dropDefaultField(item, "textScaleX", 1);
+        dropDefaultField(item, "textScaleY", 1);
+        dropDefaultField(item, "blogMode", false);
+      } else if (item.type === "image" || item.type === "video") {
+        dropDefaultField(item, "fitMode", "contain");
+      }
+
+      return item;
+    }
+
+    function compactWorkspaceForPublish(workspaceValue) {
+      const source = workspaceValue && typeof workspaceValue === "object" ? workspaceValue : {};
+      const sourceCanvases = Array.isArray(source.canvases) ? source.canvases : [];
+      const canvases = sourceCanvases.map((canvasValue) => {
+        const canvas = canvasValue && typeof canvasValue === "object" ? canvasValue : {};
+        const nextCanvas = {
+          id: typeof canvas.id === "string" ? canvas.id : generateId(),
+          name: typeof canvas.name === "string" && canvas.name.trim() ? canvas.name.trim() : "Canvas",
+          items: Array.isArray(canvas.items)
+            ? canvas.items.map((entry) => compactItemForPublish(entry))
+            : []
+        };
+        const compactSettings = compactSettingsForPublish(canvas.settings || {});
+        if (Object.keys(compactSettings).length) {
+          nextCanvas.settings = compactSettings;
+        }
+        return nextCanvas;
+      });
+
+      return {
+        canvases,
+        activeCanvasId: typeof source.activeCanvasId === "string" ? source.activeCanvasId : "",
+        publicCanvasId: typeof source.publicCanvasId === "string" ? source.publicCanvasId : ""
+      };
+    }
+
+    function buildPublishPayload() {
+      const compactWorkspace = compactWorkspaceForPublish(workspace);
+      const payload = {
+        version: 1,
+        publishedAt: new Date().toISOString(),
+        workspace: compactWorkspace
+      };
+      const assetPool = [];
+      const indexByAsset = new Map();
+      const packedWorkspace = packValueWithAssetPool(payload.workspace, assetPool, indexByAsset);
+      if (!assetPool.length) return payload;
+      return {
+        ...payload,
+        workspace: packedWorkspace,
+        assetPoolVersion: ASSET_POOL_VERSION,
+        assetPool
+      };
+    }
+
     async function verifyVaultPassword(password) {
       try {
         const response = await postJson(apiUrl("/api/auth/login"), { password });
@@ -507,9 +689,10 @@
         const response = await fetch(apiUrl, { cache: "no-store" });
         if (response.ok) {
           const payload = await response.json();
-          const apiPayload = payload && payload.payload && typeof payload.payload === "object"
+          const rawApiPayload = payload && payload.payload && typeof payload.payload === "object"
             ? payload.payload
             : null;
+          const apiPayload = decodePublishedPayload(rawApiPayload);
           if (apiPayload && apiPayload.workspace && typeof apiPayload.workspace === "object") {
             return normalizeWorkspace(apiPayload.workspace);
           }
@@ -524,7 +707,7 @@
       try {
         const response = await fetch(`${PUBLISHED_WORKSPACE_URL}?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return null;
-        const payload = await response.json();
+        const payload = decodePublishedPayload(await response.json());
         if (!payload || typeof payload !== "object") return null;
         if (payload.workspace && typeof payload.workspace === "object") {
           return normalizeWorkspace(payload.workspace);
@@ -2049,11 +2232,7 @@
       setPublishButtonState();
       setSaveStatus("Publishing...");
       try {
-        const publishWorkspacePayload = {
-          version: 1,
-          publishedAt: new Date().toISOString(),
-          workspace
-        };
+        const publishWorkspacePayload = buildPublishPayload();
         const rawPayloadBytes = estimateJsonBytes(publishWorkspacePayload);
         const encodedPayloadBytes = Math.ceil(rawPayloadBytes / 3) * 4;
         if (encodedPayloadBytes > PUBLISH_MAX_BYTES) {

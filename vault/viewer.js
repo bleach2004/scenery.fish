@@ -3,6 +3,8 @@ const AUTH_API_BASE = window.SCENERY_AUTH_BASE || "https://marisu.bleach-542.wor
 const WORKSPACE_API_URL = `${AUTH_API_BASE}/api/workspace/published`;
 const AUTH_ENDPOINT_LOGIN = `${AUTH_API_BASE}/api/auth/login`;
 const AUTH_ENDPOINT_EDIT = `${AUTH_API_BASE}/api/auth/edit`;
+const ASSET_POOL_REF_KEY = "__vaultAssetRef";
+const ASSET_POOL_VERSION = 1;
 let currentItems = [];
 
 function asNumber(value, fallback) {
@@ -36,6 +38,51 @@ function normalizeCardExplodeLayers(item) {
   return item.cardExplodeLayers
     .filter((src) => typeof src === "string" && src.trim())
     .slice(0, 6);
+}
+
+function isAssetPoolRefObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== 1 || keys[0] !== ASSET_POOL_REF_KEY) return false;
+  const index = value[ASSET_POOL_REF_KEY];
+  return Number.isInteger(index) && index >= 0;
+}
+
+function unpackValueWithAssetPool(value, assetPool) {
+  if (!value || typeof value !== "object") return value;
+  if (Array.isArray(value)) {
+    return value.map((entry) => unpackValueWithAssetPool(entry, assetPool));
+  }
+  if (isAssetPoolRefObject(value)) {
+    const index = value[ASSET_POOL_REF_KEY];
+    if (index >= 0 && index < assetPool.length) return assetPool[index];
+    return "";
+  }
+  const next = {};
+  for (const [key, entry] of Object.entries(value)) {
+    next[key] = unpackValueWithAssetPool(entry, assetPool);
+  }
+  return next;
+}
+
+function decodePublishedPayload(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  const pool = Array.isArray(payload.assetPool) ? payload.assetPool : null;
+  if (!pool || payload.assetPoolVersion !== ASSET_POOL_VERSION) return payload;
+  if (!pool.every((entry) => typeof entry === "string")) return payload;
+
+  const unpackSource = { ...payload };
+  delete unpackSource.assetPool;
+  delete unpackSource.assetPoolVersion;
+  return unpackValueWithAssetPool(unpackSource, pool);
+}
+
+function decodePublishEnvelope(payload) {
+  if (!payload || typeof payload !== "object") return payload;
+  if (payload.payload && typeof payload.payload === "object") {
+    return { ...payload, payload: decodePublishedPayload(payload.payload) };
+  }
+  return decodePublishedPayload(payload);
 }
 
 function renderItem(item, canvas) {
@@ -160,7 +207,7 @@ async function loadAndRender() {
     try {
       const response = await fetch(source, { cache: "no-store" });
       if (!response.ok) continue;
-      const payload = await response.json();
+      const payload = decodePublishEnvelope(await response.json());
       const selected = pickCanvas(payload);
       if (!selected) continue;
 
