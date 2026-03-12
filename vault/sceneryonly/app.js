@@ -3307,6 +3307,7 @@
           frame.style.width = "100%";
           frame.style.height = "100%";
           frame.style.border = "0";
+          frame.style.pointerEvents = isEditMode ? "none" : "auto";
           node.appendChild(frame);
         }
         if (item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") {
