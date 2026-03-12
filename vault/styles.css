@@ -435,6 +435,20 @@
       display: block;
     }
 
+    .canvas-item.soundcloud {
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+
+    .canvas-item.soundcloud iframe {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 0;
+      background: transparent;
+    }
+
     .media-link-hitbox {
       position: absolute;
       inset: 0;

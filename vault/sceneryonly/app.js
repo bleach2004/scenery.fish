@@ -95,6 +95,7 @@
     const attachTextBoxLinkBtn = document.getElementById("attachTextBoxLinkBtn");
     const attachLayerLinkBtn = document.getElementById("attachLayerLinkBtn");
     const clearLayerLinkBtn = document.getElementById("clearLayerLinkBtn");
+    const addSoundcloudBtn = document.getElementById("addSoundcloudBtn");
     const animationSelect = document.getElementById("animationSelect");
     const animationSpeedInput = document.getElementById("animationSpeedInput");
     const applyAnimationBtn = document.getElementById("applyAnimationBtn");
@@ -1278,14 +1279,15 @@
     function normalizeItems(list) {
       return list.map((item) => {
         const next = { ...item };
-        if (!next.w) next.w = next.type === "image" ? 300 : 260;
-        if (!next.h) next.h = next.type === "image" ? 220 : 150;
+        if (!next.w) next.w = next.type === "image" ? 300 : (next.type === "soundcloud" ? 420 : 260);
+        if (!next.h) next.h = next.type === "image" ? 220 : (next.type === "soundcloud" ? 166 : 150);
         if (typeof next.hidden !== "boolean") next.hidden = false;
         if (typeof next.locked !== "boolean") next.locked = false;
         if (!next.name) {
           if (next.type === "image") next.name = "Image";
           else if (next.type === "video") next.name = "Video";
           else if (next.type === "audio") next.name = "Audio";
+          else if (next.type === "soundcloud") next.name = "SoundCloud";
           else next.name = "Text";
         }
         if (typeof next.linkUrl !== "string") next.linkUrl = "";
@@ -1319,10 +1321,10 @@
           if (!next.textScaleX) next.textScaleX = 1;
           if (!next.textScaleY) next.textScaleY = 1;
           if (typeof next.blogMode !== "boolean") next.blogMode = false;
-        } else if (next.type === "image" || next.type === "video" || next.type === "audio") {
+        } else if (next.type === "image" || next.type === "video" || next.type === "audio" || next.type === "soundcloud") {
           if (typeof next.src !== "string") next.src = "";
           if (!Array.isArray(next.mediaAnimations)) next.mediaAnimations = [];
-          if (next.type !== "audio") {
+          if (next.type !== "audio" && next.type !== "soundcloud") {
             if (next.fitMode !== "stretch") next.fitMode = "contain";
           }
         }
@@ -1695,6 +1697,50 @@
       return `https://${value}`;
     }
 
+    function isSoundCloudUrl(raw) {
+      const normalized = normalizeUrl(raw);
+      if (!normalized) return false;
+      try {
+        const parsed = new URL(normalized, window.location.origin);
+        const host = parsed.hostname.toLowerCase();
+        return (
+          host === "soundcloud.com" ||
+          host.endsWith(".soundcloud.com") ||
+          host === "snd.sc" ||
+          host === "on.soundcloud.com" ||
+          host.endsWith(".on.soundcloud.com")
+        );
+      } catch {
+        return false;
+      }
+    }
+
+    function buildSoundCloudEmbedUrl(raw) {
+      const normalized = normalizeUrl(raw);
+      if (!isSoundCloudUrl(normalized)) return "";
+      const params = new URLSearchParams({
+        url: normalized,
+        color: "#ff5500",
+        auto_play: "false",
+        hide_related: "false",
+        show_comments: "false",
+        show_user: "true",
+        show_reposts: "false",
+        show_teaser: "true",
+        visual: "false"
+      });
+      return `https://w.soundcloud.com/player/?${params.toString()}`;
+    }
+
+    function addSoundCloudItem(rawUrl, x = null, y = null) {
+      const embedUrl = buildSoundCloudEmbedUrl(rawUrl);
+      if (!embedUrl) {
+        alert("Paste a valid SoundCloud track or playlist URL.");
+        return null;
+      }
+      return addMediaItem(embedUrl, "soundcloud", "SoundCloud", x, y);
+    }
+
     function applyLinkPresentation(anchor, displayMode) {
       anchor.classList.add("vault-link");
       anchor.style.textDecoration = "";
@@ -1835,11 +1881,11 @@
 
     function applyAnimationToBox(animationName, speed) {
       const selected = getSelectionIds().map((id) => getItemById(id)).filter((item) =>
-        item && (item.type === "text" || item.type === "image" || item.type === "video" || item.type === "audio") && !item.locked
+        item && (item.type === "text" || item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") && !item.locked
       );
       if (!selected.length) return;
       for (const item of selected) {
-        if (item.type === "image" || item.type === "video" || item.type === "audio") {
+        if (item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") {
           if (!Array.isArray(item.mediaAnimations)) item.mediaAnimations = [];
           if (animationName === "none") {
             item.mediaAnimations = [];
@@ -2056,7 +2102,7 @@
         if (Number.isFinite(snapshot.textScaleX)) item.textScaleX = snapshot.textScaleX;
         if (Number.isFinite(snapshot.textScaleY)) item.textScaleY = snapshot.textScaleY;
       }
-      if (item.type === "image" || item.type === "video" || item.type === "audio") {
+      if (item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") {
         if (typeof snapshot.fitMode === "string") item.fitMode = snapshot.fitMode === "stretch" ? "stretch" : "contain";
         if (Array.isArray(snapshot.mediaAnimations)) item.mediaAnimations = [...snapshot.mediaAnimations];
         if (typeof snapshot.invertMedia === "boolean") item.invertMedia = snapshot.invertMedia;
@@ -2349,7 +2395,7 @@
         item.marqueeGap = safeGap;
         if (item.type === "text") {
           item.animation = axis === "x" ? "marquee-left" : "wave";
-        } else if (item.type === "image" || item.type === "video" || item.type === "audio") {
+        } else if (item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") {
           const motionName = axis === "x" ? "drift-x" : "drift-y";
           if (!Array.isArray(item.mediaAnimations)) item.mediaAnimations = [];
           if (!item.mediaAnimations.includes(motionName)) item.mediaAnimations.push(motionName);
@@ -2653,6 +2699,7 @@
       if (item.type === "image") return `Image ${index + 1}`;
       if (item.type === "video") return `Video ${index + 1}`;
       if (item.type === "audio") return `Audio ${index + 1}`;
+      if (item.type === "soundcloud") return `SoundCloud ${index + 1}`;
       const temp = document.createElement("div");
       temp.innerHTML = item.text || "";
       const plain = (temp.textContent || "Text").trim().replace(/\s+/g, " ");
@@ -2825,6 +2872,7 @@
       linkLabelInput.disabled = !isEditMode;
       linkDisplaySelect.disabled = !isEditMode;
       linkTargetSelect.disabled = !isEditMode;
+      if (addSoundcloudBtn) addSoundcloudBtn.disabled = !isEditMode;
       applyTextLinkBtn.disabled = !isText || !isEditMode;
       removeTextLinkBtn.disabled = !isText || !isEditMode;
       if (attachTextBoxLinkBtn) attachTextBoxLinkBtn.disabled = !hasTextSelection || !isEditMode;
@@ -2919,7 +2967,7 @@
       if (deleteStylePresetBtn) deleteStylePresetBtn.disabled = !isEditMode || !Array.isArray(settings.stylePresets) || !settings.stylePresets.length;
 
       if (active) {
-        if ((active.type === "image" || active.type === "video" || active.type === "audio") && Array.isArray(active.mediaAnimations) && active.mediaAnimations.length) {
+        if ((active.type === "image" || active.type === "video" || active.type === "audio" || active.type === "soundcloud") && Array.isArray(active.mediaAnimations) && active.mediaAnimations.length) {
           animationSelect.value = active.mediaAnimations[active.mediaAnimations.length - 1];
         } else {
           animationSelect.value = active.animation || "none";
@@ -3237,12 +3285,23 @@
           audio.controls = true;
           audio.preload = "metadata";
           node.appendChild(audio);
+        } else if (item.type === "soundcloud") {
+          const frame = document.createElement("iframe");
+          frame.src = item.src;
+          frame.title = "SoundCloud player";
+          frame.loading = "lazy";
+          frame.referrerPolicy = "strict-origin-when-cross-origin";
+          frame.allow = "autoplay";
+          frame.style.width = "100%";
+          frame.style.height = "100%";
+          frame.style.border = "0";
+          node.appendChild(frame);
         }
-        if (item.type === "image" || item.type === "video" || item.type === "audio") {
+        if (item.type === "image" || item.type === "video" || item.type === "audio" || item.type === "soundcloud") {
           applyMediaAnimationStyles(node, item);
         }
 
-        if (item.linkUrl) {
+        if (item.linkUrl && item.type !== "soundcloud") {
           const allowFrameStyle = item.type !== "image";
           if (allowFrameStyle && item.linkDisplay === "button") {
             node.style.border = "1px solid rgba(255,255,255,0.35)";
@@ -4116,6 +4175,9 @@
       if (type === "audio") {
         w = 340;
         h = 64;
+      } else if (type === "soundcloud") {
+        w = 420;
+        h = 166;
       } else if (type === "video") {
         w = 360;
         h = 220;
@@ -4325,6 +4387,14 @@
     addImageBtn.addEventListener("click", () => {
       imageInput.click();
     });
+
+    if (addSoundcloudBtn) {
+      addSoundcloudBtn.addEventListener("click", () => {
+        if (!isEditMode) return;
+        const item = addSoundCloudItem(linkUrlInput && linkUrlInput.value, window.innerWidth * 0.5, window.innerHeight * 0.3);
+        if (item && linkUrlInput) linkUrlInput.value = "";
+      });
+    }
 
     imageInput.addEventListener("change", async () => {
       const file = imageInput.files && imageInput.files[0];
