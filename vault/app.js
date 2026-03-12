@@ -8,7 +8,7 @@
     const ASSET_POOL_VERSION = 1;
     const ASSET_POOL_MIN_DATA_URL_LENGTH = 128;
     const ASSET_SOURCE_TYPE = "github-workspace-v1";
-    const ASSET_RESOLVE_MAX_DEPTH = 5;
+    const ASSET_RESOLVE_MAX_DEPTH = 128;
     const GITHUB_OWNER = "bleach2004";
     const GITHUB_REPO = "scenery.fish";
     const GITHUB_BRANCH = "main";
@@ -211,6 +211,8 @@
     let imageInspectNoteEl = null;
     let gateInitPromise = null;
     const assetSourceCache = new Map();
+    let publishDeltaSourceDescriptor = null;
+    let publishDeltaAssetIndexByAsset = null;
 
     function forceHideVaultToolbar() {
       if (!toolbar) return;
@@ -536,6 +538,20 @@
       return { assets, indexByAsset };
     }
 
+    function setPublishDeltaBaseFromWorkspace(workspaceValue, sourceValue) {
+      const source = normalizeAssetSourceDescriptor(sourceValue);
+      const workspaceShape = getWorkspaceShape({ workspace: workspaceValue });
+      if (!source || !workspaceShape) {
+        publishDeltaSourceDescriptor = null;
+        publishDeltaAssetIndexByAsset = null;
+        return;
+      }
+      const { assets, indexByAsset } = buildEmbeddableAssetIndex(workspaceShape);
+      publishDeltaSourceDescriptor = source;
+      publishDeltaAssetIndexByAsset = indexByAsset;
+      assetSourceCache.set(buildAssetSourceCacheKey(source), Promise.resolve(assets));
+    }
+
     function packValueWithAssetPool(value, assetPool, indexByAsset, sourceIndexByAsset, stats) {
       if (looksLikeEmbeddableDataUrl(value)) {
         if (sourceIndexByAsset && sourceIndexByAsset.has(value)) {
@@ -782,28 +798,40 @@
         workspace: compactWorkspace
       };
 
-      let sourceDescriptor = null;
-      let sourceIndexByAsset = null;
-      try {
-        const commit = await fetchMainBranchHeadCommit();
-        sourceDescriptor = {
-          type: ASSET_SOURCE_TYPE,
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
-          path: GITHUB_WORKSPACE_PATH,
-          commit
-        };
-        const sourceAssets = await getAssetsForSource(sourceDescriptor, 0);
-        const sourceIndex = new Map();
-        for (let i = 0; i < sourceAssets.length; i += 1) {
-          const asset = sourceAssets[i];
-          if (!sourceIndex.has(asset)) {
-            sourceIndex.set(asset, i);
+      const currentAssetInfo = buildEmbeddableAssetIndex(payload.workspace);
+      const requiresMediaSource = currentAssetInfo.assets.length > 0;
+      let sourceDescriptor = publishDeltaSourceDescriptor;
+      let sourceIndexByAsset = publishDeltaAssetIndexByAsset;
+      if (!sourceDescriptor || !(sourceIndexByAsset instanceof Map) || (requiresMediaSource && !sourceIndexByAsset.size)) {
+        try {
+          const commit = await fetchMainBranchHeadCommit();
+          sourceDescriptor = {
+            type: ASSET_SOURCE_TYPE,
+            owner: GITHUB_OWNER,
+            repo: GITHUB_REPO,
+            path: GITHUB_WORKSPACE_PATH,
+            commit
+          };
+          const sourceAssets = await getAssetsForSource(sourceDescriptor, 0);
+          const sourceIndex = new Map();
+          for (let i = 0; i < sourceAssets.length; i += 1) {
+            const asset = sourceAssets[i];
+            if (!sourceIndex.has(asset)) {
+              sourceIndex.set(asset, i);
+            }
           }
+          sourceIndexByAsset = sourceIndex;
+          publishDeltaSourceDescriptor = sourceDescriptor;
+          publishDeltaAssetIndexByAsset = sourceIndex;
+        } catch (error) {
+          console.warn("Delta publish source load failed.", error);
         }
-        sourceIndexByAsset = sourceIndex;
-      } catch (error) {
-        console.warn("Delta publish source load failed; falling back to inline media payload.", error);
+      }
+
+      if (!sourceDescriptor || !(sourceIndexByAsset instanceof Map) || (requiresMediaSource && !sourceIndexByAsset.size)) {
+        throw new Error(
+          "Could not prepare a safe delta publish payload right now. Retry in a moment; avoid closing this tab so local edits stay safe."
+        );
       }
 
       const assetPool = [];
@@ -1003,16 +1031,35 @@
       try {
         const response = await fetch(apiUrl, { cache: "no-store" });
         if (response.ok) {
-          const payload = await response.json();
-          const rawApiPayload = payload && payload.payload && typeof payload.payload === "object"
-            ? payload.payload
+          const apiEnvelope = await response.json();
+          const rawApiPayload = apiEnvelope && apiEnvelope.payload && typeof apiEnvelope.payload === "object"
+            ? apiEnvelope.payload
             : null;
           const apiPayload = await resolvePublishedPayloadAssets(rawApiPayload);
+          const apiHeadCommitSha = apiEnvelope && typeof apiEnvelope.headCommitSha === "string"
+            ? apiEnvelope.headCommitSha.trim()
+            : "";
+          const apiHeadSource = apiHeadCommitSha
+            ? {
+                type: ASSET_SOURCE_TYPE,
+                owner: GITHUB_OWNER,
+                repo: GITHUB_REPO,
+                path: GITHUB_WORKSPACE_PATH,
+                commit: apiHeadCommitSha
+              }
+            : null;
+          const apiSourceFromPayload = apiPayload && Array.isArray(apiPayload.assetSources) && apiPayload.assetSources.length
+            ? normalizeAssetSourceDescriptor(apiPayload.assetSources[0])
+            : null;
           if (apiPayload && apiPayload.workspace && typeof apiPayload.workspace === "object") {
-            return normalizeWorkspace(apiPayload.workspace);
+            const normalized = normalizeWorkspace(apiPayload.workspace);
+            setPublishDeltaBaseFromWorkspace(normalized, apiHeadSource || apiSourceFromPayload);
+            return normalized;
           }
           if (apiPayload && Array.isArray(apiPayload.canvases)) {
-            return normalizeWorkspace(apiPayload);
+            const normalized = normalizeWorkspace(apiPayload);
+            setPublishDeltaBaseFromWorkspace(normalized, apiHeadSource || apiSourceFromPayload);
+            return normalized;
           }
         }
       } catch (error) {
@@ -1024,11 +1071,18 @@
         if (!response.ok) return null;
         const payload = await resolvePublishedPayloadAssets(await response.json());
         if (!payload || typeof payload !== "object") return null;
+        const sourceFromPayload = Array.isArray(payload.assetSources) && payload.assetSources.length
+          ? normalizeAssetSourceDescriptor(payload.assetSources[0])
+          : null;
         if (payload.workspace && typeof payload.workspace === "object") {
-          return normalizeWorkspace(payload.workspace);
+          const normalized = normalizeWorkspace(payload.workspace);
+          setPublishDeltaBaseFromWorkspace(normalized, sourceFromPayload);
+          return normalized;
         }
         if (Array.isArray(payload.canvases)) {
-          return normalizeWorkspace(payload);
+          const normalized = normalizeWorkspace(payload);
+          setPublishDeltaBaseFromWorkspace(normalized, sourceFromPayload);
+          return normalized;
         }
         return null;
       } catch (error) {
@@ -2582,6 +2636,16 @@
         const data = await response.json();
         if (!data || !data.ok) {
           throw new Error("GitHub publish failed.");
+        }
+        const commitSha = data && typeof data.commitSha === "string" ? data.commitSha.trim() : "";
+        if (commitSha) {
+          setPublishDeltaBaseFromWorkspace(workspace, {
+            type: ASSET_SOURCE_TYPE,
+            owner: GITHUB_OWNER,
+            repo: GITHUB_REPO,
+            path: GITHUB_WORKSPACE_PATH,
+            commit: commitSha
+          });
         }
         lastVerifiedEditPassword = publishPassword;
         setSaveStatus("Published");

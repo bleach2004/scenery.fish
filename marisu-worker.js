@@ -99,6 +99,17 @@ async function readPublishedWorkspaceFromGithub(env) {
   const branch = env.GITHUB_BRANCH || "main";
   const path = env.GITHUB_PATH || "vault/workspace.json";
   const token = env.GITHUB_TOKEN || "";
+  let headCommitSha = "";
+  if (token) {
+    try {
+      const headInfo = await resolveHeadCommitAndTree(owner, repo, branch, token);
+      headCommitSha = headInfo && typeof headInfo.headCommitSha === "string"
+        ? headInfo.headCommitSha
+        : "";
+    } catch {
+      headCommitSha = "";
+    }
+  }
   const encodedPath = encodeRepoPath(path);
   const url = `https://api.github.com/repos/${owner}/${repo}/contents/${encodedPath}?ref=${encodeURIComponent(branch)}`;
   const headers = {
@@ -124,7 +135,10 @@ async function readPublishedWorkspaceFromGithub(env) {
   if (encoded) {
     const normalized = encoded.replace(/\s+/g, "");
     const decoded = base64DecodeUtf8(normalized);
-    return JSON.parse(decoded);
+    return {
+      payload: JSON.parse(decoded),
+      headCommitSha
+    };
   }
 
   const downloadUrl = typeof data.download_url === "string" ? data.download_url : "";
@@ -145,7 +159,10 @@ async function readPublishedWorkspaceFromGithub(env) {
     const body = await rawResponse.text();
     throw new Error(`Failed to download published workspace (${rawResponse.status}): ${body}`);
   }
-  return await rawResponse.json();
+  return {
+    payload: await rawResponse.json(),
+    headCommitSha
+  };
 }
 
 async function publishWorkspaceToGithub(env, message, workspace) {
@@ -289,6 +306,8 @@ async function publishEncodedContentViaGitDataApi(owner, repo, path, branch, tok
     const body = await updateRefResponse.text();
     throw new Error(`Failed to update branch ref (${updateRefResponse.status}): ${body}`);
   }
+
+  return newCommitSha;
 }
 
 function createBlobCreateRequestBodyStream(base64Stream) {
@@ -466,7 +485,7 @@ async function publishRequestBodyViaGitDataApi(env, message, base64Stream) {
     throw new Error(`Failed to update branch ref (${updateRefResponse.status}): ${body}`);
   }
 
-  return { owner, repo, branch, path };
+  return { owner, repo, branch, path, commitSha: newCommitSha };
 }
 
 async function publishEncodedContentToGithub(env, message, encodedContent) {
@@ -501,14 +520,25 @@ async function publishEncodedContentToGithub(env, message, encodedContent) {
     body: JSON.stringify(requestBody)
   });
   if (response.ok) {
-    return { owner, repo, branch, path };
+    let commitSha = "";
+    try {
+      const data = await response.json();
+      commitSha = data
+        && data.commit
+        && typeof data.commit.sha === "string"
+        ? data.commit.sha
+        : "";
+    } catch {
+      commitSha = "";
+    }
+    return { owner, repo, branch, path, commitSha };
   }
 
   const body = await response.text();
   const tooLargeForContentsApi = response.status === 422 && /too large to be processed/i.test(body);
   if (tooLargeForContentsApi) {
-    await publishEncodedContentViaGitDataApi(owner, repo, path, branch, token, message, encodedContent);
-    return { owner, repo, branch, path };
+    const commitSha = await publishEncodedContentViaGitDataApi(owner, repo, path, branch, token, message, encodedContent);
+    return { owner, repo, branch, path, commitSha };
   }
 
   throw new Error(`GitHub publish failed (${response.status}): ${body}`);
@@ -612,8 +642,8 @@ export default {
 
     if (url.pathname === "/api/workspace/published" && request.method === "GET") {
       try {
-        const payload = await readPublishedWorkspaceFromGithub(env);
-        return json({ ok: true, payload }, 200, cors);
+        const result = await readPublishedWorkspaceFromGithub(env);
+        return json({ ok: true, payload: result.payload, headCommitSha: result.headCommitSha || "" }, 200, cors);
       } catch (error) {
         return json({ ok: false, error: String(error && error.message ? error.message : error) }, 500, cors);
       }
