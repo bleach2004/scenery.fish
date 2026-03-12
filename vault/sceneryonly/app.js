@@ -3286,6 +3286,18 @@
           audio.preload = "metadata";
           node.appendChild(audio);
         } else if (item.type === "soundcloud") {
+          const moveHandle = document.createElement("div");
+          moveHandle.className = "media-move-handle";
+          moveHandle.textContent = "DRAG";
+          moveHandle.title = "Drag SoundCloud player";
+          moveHandle.addEventListener("pointerdown", (event) => {
+            if (!isEditMode || item.locked) return;
+            event.preventDefault();
+            event.stopPropagation();
+            startTransform(event, item, node, "move");
+          });
+          node.appendChild(moveHandle);
+
           const frame = document.createElement("iframe");
           frame.src = item.src;
           frame.title = "SoundCloud player";

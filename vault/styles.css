@@ -322,7 +322,8 @@
       color: #d6d6d6;
     }
 
-    .text-move-handle {
+    .text-move-handle,
+    .media-move-handle {
       position: absolute;
       left: 0.25rem;
       right: 0.25rem;
@@ -343,11 +344,13 @@
       touch-action: none;
     }
 
-    .canvas-item.selected.editing.text .text-move-handle {
+    .canvas-item.selected.editing.text .text-move-handle,
+    .canvas-item.selected.editing.soundcloud .media-move-handle {
       display: flex;
     }
 
-    .canvas-item.selected.editing.text .text-move-handle:active {
+    .canvas-item.selected.editing.text .text-move-handle:active,
+    .canvas-item.selected.editing.soundcloud .media-move-handle:active {
       cursor: grabbing;
     }
 
@@ -1201,7 +1204,8 @@
       border-radius: 0 8px 8px 0;
     }
 
-    .text-move-handle {
+    .text-move-handle,
+    .media-move-handle {
       border: 1px solid rgba(116, 116, 116, 0.65);
       border-radius: 8px;
       background: #2a2a2a;
